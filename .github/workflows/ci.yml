@@ -55,7 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable-x86_64-pc-windows-msvc
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Build the macroquad frontend
         run: cargo build
