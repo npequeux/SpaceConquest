@@ -1,0 +1,30 @@
+[package]
+name = "stellar-dominion"
+version = "3.0.0"
+edition = "2021"
+description = "A turn-based 4X space strategy game (Rust + macroquad)"
+license = "MIT"
+
+[[bin]]
+name = "stellar-dominion"
+path = "src/main.rs"
+required-features = ["ui"]
+
+[lib]
+name = "stellar_dominion"
+path = "src/lib.rs"
+
+# The macroquad frontend is optional so the simulation can be built and tested
+# headlessly (CI, servers, tooling) without any windowing system.
+[features]
+default = ["ui"]
+ui = ["dep:macroquad"]
+
+[dependencies]
+macroquad = { version = "0.4", optional = true }
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 2

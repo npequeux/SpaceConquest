@@ -1,12 +1,62 @@
-# Stellar Dominion (Python edition)
+# Stellar Dominion
 
-A turn-based 4X space strategy game written in **Python** with **pygame-ce**.
-No JavaScript, no Java — pure Python.
+A turn-based 4X space strategy game. The current edition is written in **Rust**
+with **macroquad**; an earlier Python/pygame-ce edition is kept under `py/` for
+reference.
 
-> This is a desktop application rather than a browser game: a browser can only
-> execute JavaScript or WebAssembly, and JavaScript is off-limits for this project.
+No JavaScript, no Java — the game is a native desktop application.
 
 ---
+
+## Rust edition
+
+### Requirements
+
+- Rust stable (2021 edition). On Windows the GNU toolchain
+  (`stable-x86_64-pc-windows-gnu`) plus a MinGW-w64 `x86_64-w64-mingw32-gcc`
+  linker is used, configured in `rust/.cargo/config.toml`. On Linux and macOS the
+  default host toolchain works unchanged.
+
+### Run it
+
+```bash
+cd rust
+cargo run
+```
+
+The macroquad frontend is behind the default `ui` feature. The simulation itself
+has no windowing dependency, so it builds and tests headlessly:
+
+```bash
+cargo test --no-default-features
+```
+
+### Project layout
+
+```
+rust/
+  src/
+    data.rs      static tables: stars, planets, ships, buildings, techs, designer, empires
+    galaxy.rs    procedural galaxy generation
+    state.rs     serializable game state
+    engine.rs    rules, economy, movement, combat, diplomacy, save/load
+    ai.rs        rival empire behaviour
+    sim.rs       owns the state, the RNG and the toast queue
+    ui.rs        macroquad frontend: map, panels, minimap, modals, input
+    lib.rs       the simulation library (ui is feature-gated)
+    main.rs      thin macroquad shell
+  tests/
+    sim_smoke.rs headless simulation tests (new game, 40 turns, save/load)
+```
+
+The simulation never touches the windowing layer; rendering and input live only
+in `ui.rs`. Saves live in `~/.stellar_dominion_save.json`.
+
+---
+
+## Python edition (legacy)
+
+A turn-based 4X space strategy game written in **Python** with **pygame-ce**.
 
 ## Requirements
 
@@ -76,7 +126,7 @@ needs. Saved designs appear in the colony's build list beside the stock classes.
 
 ---
 
-## Project layout
+## Python project layout
 
 ```
 py/
@@ -98,9 +148,20 @@ the filesystem except through `save_game()` / `load_game()`. Saves live in
 
 ## Development
 
+Rust:
+
 ```bash
+cd rust
+cargo test --no-default-features   # headless simulation tests
+cargo clippy --no-default-features
+```
+
+Python:
+
+```bash
+cd py
 uv run python tools/render_test.py out/     # renders 7 frames offscreen
 uv run python tools/interact_test.py        # 38 UI interaction checks
 ```
 
-Both run with SDL's dummy video driver, so they need no display.
+Both Python tools run with SDL's dummy video driver, so they need no display.

@@ -30,3 +30,32 @@ jobs:
 
       - name: Headless render test
         run: python tools/render_test.py out/
+
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build (headless simulation)
+        run: cargo build --no-default-features
+
+      - name: Test
+        run: cargo test --no-default-features
+
+  ui:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable-x86_64-pc-windows-msvc
+
+      - name: Build the macroquad frontend
+        run: cargo build
