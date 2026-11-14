@@ -29,6 +29,11 @@ has no windowing dependency, so it builds and tests headlessly:
 cargo test --no-default-features
 ```
 
+The window opens at 1600x900 and is resizable. The interface scales itself to the
+window (reference design 1024x640) and renders at the monitor's native resolution
+(`high_dpi`), so text stays sharp on high-DPI displays instead of being upscaled
+by the window system.
+
 ### Project layout
 
 ```

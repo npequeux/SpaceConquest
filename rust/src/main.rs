@@ -15,8 +15,11 @@ use stellar_dominion::{sim, ui};
 fn window_conf() -> Conf {
     Conf {
         window_title: "Stellar Dominion".to_owned(),
-        window_width: 1360,
-        window_height: 800,
+        window_width: 1600,
+        window_height: 900,
+        // render at the monitor's native resolution: without this Windows
+        // upscales the framebuffer and the whole interface comes out blurry
+        high_dpi: true,
         ..Default::default()
     }
 }
