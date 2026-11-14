@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stellar Dominion — Space Strategy</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="tb-group">
+      <span class="game-title">STELLAR DOMINION</span>
+      <span class="tb-item" id="tb-turn">Turn 1</span>
+    </div>
+    <div class="tb-group" id="tb-resources">
+      <span class="tb-item res" id="tb-credits" title="Credits — used for ships and buildings">Credits 0</span>
+      <span class="tb-item res" id="tb-minerals" title="Minerals — used for ships and buildings">Minerals 0</span>
+      <span class="tb-item res" id="tb-research" title="Research per turn">Research 0</span>
+      <span class="tb-item" id="tb-tech">No research</span>
+    </div>
+    <div class="tb-group">
+      <button class="btn" id="btn-research">Research</button>
+      <button class="btn" id="btn-diplomacy">Diplomacy</button>
+      <button class="btn" id="btn-battles">Battles</button>
+      <button class="btn" id="btn-home" title="Center on home system">Home</button>
+      <button class="btn" id="btn-save">Save</button>
+      <button class="btn" id="btn-new">New Game</button>
+      <button class="btn" id="btn-help">Help</button>
+      <button class="btn btn-primary" id="btn-endturn">End Turn</button>
+    </div>
+  </header>
+  <div id="main">
+    <div id="map-wrap">
+      <canvas id="map"></canvas>
+      <div id="map-hint">Click a system or fleet to select &middot; with a fleet selected, click a system to move &middot; drag to pan &middot; scroll to zoom &middot; Esc to deselect</div>
+    </div>
+    <aside id="sidebar">
+      <div class="side-title">Galaxy</div>
+      <canvas id="minimap" width="256" height="148"></canvas>
+      <div class="side-title">Event Log</div>
+      <div id="log"></div>
+    </aside>
+  </div>
+  <footer id="selection-panel">
+    <div id="sel-content">Select a system or fleet.</div>
+  </footer>
+</div>
+<div id="modal-overlay" class="hidden"><div id="modal"></div></div>
+<div id="toast" class="hidden"></div>
+<script src="js/util.js"></script>
+<script src="js/data.js"></script>
+<script src="js/galaxy.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
