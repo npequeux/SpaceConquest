@@ -1,10 +1,8 @@
 # Stellar Dominion
 
-A turn-based 4X space strategy game. The current edition is written in **Rust**
-with **macroquad**; an earlier Python/pygame-ce edition is kept under `py/` for
-reference.
+A turn-based 4X space strategy game written in **Rust** with **macroquad**.
 
-No JavaScript, no Java — the game is a native desktop application.
+No JavaScript, no Java — a native desktop application.
 
 ---
 
@@ -54,38 +52,6 @@ in `ui.rs`. Saves live in `~/.stellar_dominion_save.json`.
 
 ---
 
-## Python edition (legacy)
-
-A turn-based 4X space strategy game written in **Python** with **pygame-ce**.
-
-## Requirements
-
-- Python 3.12 or newer
-- [pygame-ce](https://pyga.me/) (the community edition of pygame)
-
-## Run it
-
-The easiest way is [uv](https://docs.astral.sh/uv/), which is already set up in
-this folder:
-
-```bash
-cd py
-uv run python main.py
-```
-
-Or with an ordinary Python environment:
-
-```bash
-cd py
-python -m pip install pygame-ce
-python main.py
-```
-
-The project virtual environment (`.venv`) is committed in the folder, so
-`uv run` works out of the box.
-
----
-
 ## How to play
 
 **Goal:** win by eliminating every rival empire, or by controlling **55% of
@@ -124,28 +90,6 @@ Select one of your colonies with a Shipyard and click **+ Design a Ship**. Pick 
 preview shows hit points, attack, speed, cost, build time and any research the design
 needs. Saved designs appear in the colony's build list beside the stock classes.
 
----
-
-## Python project layout
-
-```
-py/
-  stellar_dominion/
-    data.py      static tables: stars, planets, ships, buildings, techs, designer, empires
-    galaxy.py    procedural galaxy generation
-    engine.py    state, rules, economy, movement, combat, diplomacy, save/load
-    ai.py        rival empire behaviour (reuses the player's action functions)
-    ui.py        pygame frontend: map, panels, minimap, modals, input
-  main.py        entry point
-  tools/
-    render_test.py     headless frame rendering (no window needed)
-    interact_test.py   headless UI interaction test
-```
-
-The simulation in `engine.py` is pure: it never imports pygame and never touches
-the filesystem except through `save_game()` / `load_game()`. Saves live in
-`~/.stellar_dominion_save.json`.
-
 ## Development
 
 Rust:
@@ -155,13 +99,3 @@ cd rust
 cargo test --no-default-features   # headless simulation tests
 cargo clippy --no-default-features
 ```
-
-Python:
-
-```bash
-cd py
-uv run python tools/render_test.py out/     # renders 7 frames offscreen
-uv run python tools/interact_test.py        # 38 UI interaction checks
-```
-
-Both Python tools run with SDL's dummy video driver, so they need no display.
