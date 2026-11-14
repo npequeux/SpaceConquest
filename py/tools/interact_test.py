@@ -35,7 +35,7 @@ def main():
     # --- 1. click the home system on the map -> selects it
     ui.draw()
     home = engine.get_system(engine.player()["homeSystemId"])
-    p = ui.w2s(home["x"], home["y"])
+    p = ui.w2screen(home["x"], home["y"])
     ui.mouse = (int(p[0]), int(p[1]))
     ui.handle_click(ui.mouse)
     ok.append(("select home system", engine.state["selected"] == {"type": "system", "id": home["id"]}))
@@ -62,7 +62,7 @@ def main():
     ui.draw()
     fleet = engine.empire_fleets(0)[0]
     fp = ui.fleet_draw_pos(fleet)
-    fs = ui.w2s(fp[0], fp[1])
+    fs = ui.w2screen(fp[0], fp[1])
     ui.mouse = (int(fs[0]), int(fs[1]))
     ui.handle_click(ui.mouse)
     ok.append(("select fleet", engine.state["selected"] == {"type": "fleet", "id": fleet["id"]}))
@@ -73,7 +73,7 @@ def main():
     dest = min(candidates, key=lambda s: engine.dist(home["x"], home["y"], s["x"], s["y"]))
     ui.cam = {"x": (home["x"] + dest["x"]) / 2, "y": (home["y"] + dest["y"]) / 2, "zoom": 0.5}
     ui.draw()
-    dp = ui.w2s(dest["x"], dest["y"])
+    dp = ui.w2screen(dest["x"], dest["y"])
     ui.mouse = (int(dp[0]), int(dp[1]))
     ui.handle_click(ui.mouse)
     ok.append(("fleet ordered to move", bool(fleet["moves"]) and fleet["moves"]["toSystemId"] == dest["id"]))

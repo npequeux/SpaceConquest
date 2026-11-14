@@ -5,12 +5,26 @@ calls engine actions; never mutates game rules itself.
 """
 
 import math
+import os
 import pygame
 
 from . import ai
 from . import data
 from . import engine
 from . import galaxy
+
+# Set SD_DEBUG_CLICKS=1 to record every click (position, modal, hit action).
+_CLICK_LOG = os.path.expanduser("~/.stellar_dominion_clicks.log")
+
+
+def _log_click(msg):
+    if os.environ.get("SD_DEBUG_CLICKS") != "1":
+        return
+    try:
+        with open(_CLICK_LOG, "a", encoding="utf-8") as fh:
+            fh.write(msg + "\n")
+    except OSError:
+        pass
 
 # ---------------------------------------------------------------------------
 # Theme
@@ -186,6 +200,11 @@ class UI:
         return ((sx - self.map_rect.w / 2) / self.cam["zoom"] + self.cam["x"],
                 (sy - self.map_rect.h / 2) / self.cam["zoom"] + self.cam["y"])
 
+    def w2screen(self, wx, wy):
+        """World coordinates -> absolute screen coordinates (for hit testing)."""
+        p = self.w2s(wx, wy)
+        return (p[0] + self.map_rect.x, p[1] + self.map_rect.y)
+
     # ------------------------------------------------------------------
     # Drawing helpers
     # ------------------------------------------------------------------
@@ -282,6 +301,7 @@ class UI:
                 self.onKey(event)
 
     def onMouseDown(self, event):
+        _log_click("DOWN button=%s pos=%s" % (getattr(event, "button", None), getattr(event, "pos", None)))
         if event.button == 1:
             self.drag = {"start": event.pos, "last": event.pos, "moved": False}
         elif event.button == 3:
@@ -291,6 +311,8 @@ class UI:
                 engine.select(None)
 
     def onMouseUp(self, event):
+        _log_click("UP button=%s pos=%s drag=%s" % (getattr(event, "button", None),
+                                                    getattr(event, "pos", None), self.drag))
         if event.button == 1 and self.drag:
             # Modal buttons live in `clickables` too, so process every click —
             # handle_click() gives modal entries priority and swallows the rest.
@@ -364,8 +386,10 @@ class UI:
         start = self._modal_click_start if self.modal else 0
         for rect, action, arg, enabled in reversed(self.clickables[start:]):
             if enabled and rect.collidepoint(pos):
+                _log_click("pos=%s modal=%s -> action=%s arg=%s" % (pos, self.modal, action, arg))
                 self.do_action(action, arg, pos)
                 return
+        _log_click("pos=%s modal=%s -> NO HIT" % (pos, self.modal))
         # While a modal is open a click that hits nothing must not fall through
         # to the map behind the overlay.
         if not self.modal:
@@ -682,8 +706,9 @@ class UI:
         lw = self.f_map.size(label)[0]
         surf.blit(self.f_map.render(label, True, col), (int(p[0] - lw / 2), int(p[1] + r + 15 * zoom_f + 2)))
 
-        # click target
-        hit = pygame.Rect(p[0] - (r + 8), p[1] - (r + 8), (r + 8) * 2, (r + 8) * 2)
+        # click target (converted to absolute screen coordinates)
+        hit = pygame.Rect(p[0] + self.map_rect.x - (r + 8), p[1] + self.map_rect.y - (r + 8),
+                          (r + 8) * 2, (r + 8) * 2)
         self.clickables.append((hit, "select_system", s["id"], True))
 
     def fleet_draw_pos(self, f):
@@ -717,7 +742,7 @@ class UI:
         surf.blit(self.f_small.render(cnt, True, (235, 242, 255)),
                   (int(p[0] + fs + 2), int(p[1] - fs)))
 
-        hit = pygame.Rect(p[0] - 12, p[1] - 12, 24, 24)
+        hit = pygame.Rect(p[0] + self.map_rect.x - 12, p[1] + self.map_rect.y - 12, 24, 24)
         self.clickables.append((hit, "select_fleet", f["id"], True))
 
     def draw_selection(self, surf):
@@ -1420,12 +1445,29 @@ class UI:
     # ------------------------------------------------------------------
     # Main loop
     # ------------------------------------------------------------------
+    def _foreground(self):
+        """Bring the game window to the front (Windows only)."""
+        if os.name != "nt":
+            return
+        try:
+            import ctypes
+
+            hwnd = pygame.display.get_wm_info().get("window")
+            if hwnd:
+                ctypes.windll.user32.SetForegroundWindow(int(hwnd))
+        except Exception:
+            pass
+
     def run(self):
         self.layout()
         self.modal = "new"
+        self._foreground()
         while self.running:
             self.handle_events()
-            # keyboard shortcuts for modals that need them
+            # keep the window in front until a game exists, so the first click on
+            # Start Game cannot be swallowed by another window
+            if not engine.state:
+                self._foreground()
             self.draw()
             pygame.display.flip()
             self.clock.tick(60)
