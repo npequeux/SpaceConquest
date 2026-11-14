@@ -95,12 +95,14 @@ jobs:
           --title "Stellar Dominion ${GITHUB_REF_NAME}"
           --notes "Windows build of Stellar Dominion ${GITHUB_REF_NAME}."
 
-  # The browser build is deployed to GitHub Pages on every push.
+  # The browser build is published to GitHub Pages on every push. Pages is
+  # configured with `build_type: legacy` on the `gh-pages` branch (the Actions
+  # Pages environment GitHub creates carries a branch policy that blocks main,
+  # which left deployments accepted but the site unpublished).
   pages:
     runs-on: ubuntu-latest
     permissions:
-      pages: write
-      id-token: write
+      contents: write
     defaults:
       run:
         working-directory: rust
@@ -117,17 +119,20 @@ jobs:
       - name: Stage the web build
         run: cp target/wasm32-unknown-unknown/release/stellar-dominion.wasm web/
 
-      - name: Configure Pages
+      - name: Publish to the gh-pages branch
         if: github.event_name == 'push'
-        uses: actions/configure-pages@v5
-
-      - name: Upload the web build
-        if: github.event_name == 'push'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: rust/web
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        if: github.event_name == 'push'
-        uses: actions/deploy-pages@v4
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_DIR: /home/runner/gh-pages
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch gh-pages \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${TARGET_DIR}"
+          cp web/index.html web/mq_js_bundle.js web/stellar-dominion.wasm "${TARGET_DIR}/"
+          cd "${TARGET_DIR}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Deploy ${GITHUB_SHA} to GitHub Pages" || true
+          git push origin gh-pages
