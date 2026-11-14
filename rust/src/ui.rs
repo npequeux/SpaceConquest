@@ -36,12 +36,15 @@ const BORDER: Color = Color::from_rgba(48, 66, 108, 255);
 const TEXT: Color = Color::from_rgba(230, 238, 252, 255);
 const MUTED: Color = Color::from_rgba(160, 175, 208, 255);
 const ACCENT: Color = Color::from_rgba(94, 220, 235, 255);
-const ACCENT2: Color = Color::from_rgba(124, 77, 255, 255);
+const ACCENT2: Color = Color::from_rgba(150, 108, 255, 255);
 const GOOD: Color = Color::from_rgba(102, 187, 106, 255);
 const BAD: Color = Color::from_rgba(239, 83, 80, 255);
 const WAR: Color = Color::from_rgba(255, 112, 67, 255);
-const RESEARCH: Color = Color::from_rgba(66, 165, 245, 255);
-const GOLD: Color = Color::from_rgba(255, 213, 79, 255);
+const RESEARCH: Color = Color::from_rgba(120, 170, 255, 255);
+const GOLD: Color = Color::from_rgba(255, 200, 82, 255);
+const AMBER: Color = Color::from_rgba(255, 166, 77, 255);
+const COPPER: Color = Color::from_rgba(226, 116, 61, 255);
+const MAGENTA: Color = Color::from_rgba(236, 112, 196, 255);
 const WHITE: Color = Color::from_rgba(255, 255, 255, 255);
 const BLACK: Color = Color::from_rgba(4, 6, 12, 255);
 
@@ -164,6 +167,8 @@ struct Star {
     y: f32,
     r: f32,
     a: f32,
+    /// which of the starfield tints to draw with
+    tint: u8,
 }
 
 struct Nebula {
@@ -224,10 +229,11 @@ impl Ui {
                 y: rng.gen_range(0.0..galaxy::HEIGHT),
                 r: rng.gen_range(0.4..1.9f32),
                 a: rng.gen_range(0.25..0.85f32),
+                tint: rng.gen_range(0..4u8),
             })
             .collect();
         let colors = [
-            "#1b2a5e", "#3a1b5e", "#0e3a4a", "#4a1b2a", "#1b4a3a", "#2a2a6e",
+            "#27459e", "#6a2a9e", "#177a8a", "#9e2a4a", "#2a8a5a", "#8a5a1a", "#4a2a8a", "#1a6a6a",
         ];
         let nebulae: Vec<Nebula> = (0..9)
             .map(|_| Nebula {
@@ -285,6 +291,30 @@ impl Ui {
         v * self.scale
     }
 
+    /// Monitor DPI scale. macroquad's font sizes are *logical* units: it
+    /// rasterises at `size * dpi` and draws at `size`, while the rest of the
+    /// interface is laid out in physical pixels. Dividing by this keeps text
+    /// exactly the size the layout expects instead of 1.25x too large.
+    fn dpi(&self) -> f32 {
+        let d = macroquad::window::screen_dpi_scale();
+        if d > 0.0 {
+            d
+        } else {
+            1.0
+        }
+    }
+
+    fn text(&self, s: &str, x: f32, y: f32, size: f32, color: Color) {
+        let logical = (size * self.scale / self.dpi()).max(1.0);
+        draw_text(s, x, y, logical, color);
+    }
+
+    /// Physical-pixel width of a string set at a design size.
+    fn text_width(&self, s: &str, size: f32) -> f32 {
+        let logical = (size * self.scale / self.dpi()).max(1.0);
+        measure_text(s, None, logical.round() as u16, 1.0).width * self.dpi()
+    }
+
     fn layout(&self) -> (Rect, Rect, Rect, Rect) {
         let w = screen_width();
         let h = screen_height();
@@ -336,14 +366,6 @@ impl Ui {
     // ------------------------------------------------------------------
     // Text helpers
     // ------------------------------------------------------------------
-    fn text(&self, s: &str, x: f32, y: f32, size: f32, color: Color) {
-        draw_text(s, x, y, size * self.scale, color);
-    }
-
-    fn text_width(&self, s: &str, size: f32) -> f32 {
-        measure_text(s, None, (size * self.scale).max(1.0) as u16, 1.0).width
-    }
-
     fn wrap(&self, s: &str, size: f32, max_w: f32) -> Vec<String> {
         let mut lines: Vec<String> = Vec::new();
         let mut cur = String::new();
@@ -376,7 +398,6 @@ impl Ui {
         size: f32,
     ) -> bool {
         let s = self.scale;
-        let size = size * s;
         let label_color = if enabled { TEXT } else { c(90, 100, 125) };
         let tw = self.text_width(label, size);
         // grow fixed-width buttons so the label is never clipped
@@ -433,7 +454,7 @@ impl Ui {
         draw_rectangle(r.x, r.y, r.w, r.h, fill);
         draw_rectangle_lines(r.x, r.y, r.w, r.h, s.max(1.0), border);
 
-        let th = size;
+        let th = size * s;
         self.text(
             label,
             r.x + (r.w - tw) / 2.0,
@@ -947,6 +968,7 @@ impl Ui {
             box_r.h,
             Color::from_rgba(8, 12, 24, 200),
         );
+        draw_rectangle_lines(box_r.x, box_r.y, box_r.w, box_r.h, 1.0, AMBER);
         self.text(
             s,
             box_r.x + self.u(8.0),
@@ -990,31 +1012,40 @@ impl Ui {
             ),
             None => "-".to_string(),
         };
-        let items = vec![
-            format!("Turn {}", st.turn),
-            format!(
-                "Credits {}  +{}",
-                p.credits as i32,
-                inc.credits.round() as i32
+        let items: Vec<(String, Color)> = vec![
+            (format!("Turn {}", st.turn), TEXT),
+            (
+                format!(
+                    "Credits {}  +{}",
+                    p.credits as i32,
+                    inc.credits.round() as i32
+                ),
+                GOLD,
             ),
-            format!(
-                "Minerals {}  +{}",
-                p.minerals as i32,
-                inc.minerals.round() as i32
+            (
+                format!(
+                    "Minerals {}  +{}",
+                    p.minerals as i32,
+                    inc.minerals.round() as i32
+                ),
+                COPPER,
             ),
-            format!(
-                "Research {}  +{}{}",
-                research,
-                inc.research.round() as i32,
-                if pool > 0 {
-                    format!("  ({} banked)", pool)
-                } else {
-                    String::new()
-                }
+            (
+                format!(
+                    "Research {}  +{}{}",
+                    research,
+                    inc.research.round() as i32,
+                    if pool > 0 {
+                        format!("  ({} banked)", pool)
+                    } else {
+                        String::new()
+                    }
+                ),
+                RESEARCH,
             ),
         ];
-        for s in items {
-            self.text(&s, x, mid + self.u(4.0), 14.0, TEXT);
+        for (s, col) in items {
+            self.text(&s, x, mid + self.u(4.0), 14.0, col);
             x += self.text_width(&s, 14.0) + self.u(16.0);
         }
 
@@ -1080,8 +1111,8 @@ impl Ui {
             {
                 continue;
             }
-            draw_circle(p.x, p.y, target_r, with_alpha(n.color, 26));
-            draw_circle(p.x, p.y, target_r * 0.6, with_alpha(n.color, 22));
+            draw_circle(p.x, p.y, target_r, with_alpha(n.color, 38));
+            draw_circle(p.x, p.y, target_r * 0.6, with_alpha(n.color, 30));
         }
 
         // starfield
@@ -1090,13 +1121,14 @@ impl Ui {
             if p.x < map.x || p.x > map.x + map.w || p.y < map.y || p.y > map.y + map.h {
                 continue;
             }
-            let b = (200.0 * s.a) as u8;
-            draw_circle(
-                p.x,
-                p.y,
-                s.r.max(1.0),
-                Color::from_rgba(b, b, b.saturating_add(30), 255),
-            );
+            let b = (210.0 * s.a) as u8;
+            let col = match s.tint {
+                0 => Color::from_rgba(b, b, b.saturating_add(30), 255),
+                1 => Color::from_rgba(b, (b as f32 * 0.86) as u8, (b as f32 * 0.62) as u8, 255),
+                2 => Color::from_rgba((b as f32 * 0.78) as u8, (b as f32 * 0.84) as u8, b, 255),
+                _ => Color::from_rgba(b, (b as f32 * 0.92) as u8, (b as f32 * 0.80) as u8, 255),
+            };
+            draw_circle(p.x, p.y, s.r.max(1.0), col);
         }
 
         // move lines
@@ -1232,12 +1264,26 @@ impl Ui {
             col,
         );
 
+        // a settled system gets a gold marker so colonies read at a glance
+        if explored && s.planet.colony.is_some() {
+            let mx = p.x + r * 0.95;
+            let my = p.y - r * 0.95;
+            draw_circle(mx, my, self.u(4.0), with_alpha(GOLD, 255));
+            draw_circle(mx, my, self.u(2.0), with_alpha(BLACK, 200));
+        }
+
+        // generous hit target: small stars should not need pixel-hunting
+        let hit_r = (r + self.u(12.0)).max(self.u(18.0));
         let hit = rect(
-            p.x + map.x - (r + self.u(8.0)),
-            p.y + map.y - (r + self.u(8.0)),
-            (r + self.u(8.0)) * 2.0,
-            (r + self.u(8.0)) * 2.0,
+            p.x + map.x - hit_r,
+            p.y + map.y - hit_r,
+            hit_r * 2.0,
+            hit_r * 2.0,
         );
+        if hit.contains(mouse_position().into()) {
+            draw_circle(p.x, p.y, hit_r, with_alpha(ACCENT, 60));
+            draw_circle(p.x, p.y, hit_r, with_alpha(ACCENT, 150));
+        }
         self.clickables.push(Clickable {
             r: hit,
             action: Action::SelectSystem(s.id),
@@ -1271,7 +1317,7 @@ impl Ui {
             None => return,
         };
         let color = rgb(&e.color);
-        let fs = (9.0 * zoom_f).max(7.0);
+        let fs = (11.0 * zoom_f).max(9.0);
         let dest = f.moves.as_ref().and_then(|m| st.system(m.to_system_id));
         let angle = match dest {
             Some(d) => (d.y - f.y).atan2(d.x - f.x),
@@ -1290,12 +1336,16 @@ impl Ui {
         let cnt = format!("{}", f.ships.len());
         self.text(&cnt, p.x + fs + 2.0, p.y - fs, 13.0, c(235, 242, 255));
 
+        let hit_r = self.u(18.0);
         let hit = rect(
-            p.x + map.x - self.u(12.0),
-            p.y + map.y - self.u(12.0),
-            24.0,
-            24.0,
+            p.x + map.x - hit_r,
+            p.y + map.y - hit_r,
+            hit_r * 2.0,
+            hit_r * 2.0,
         );
+        if hit.contains(mouse_position().into()) {
+            draw_circle(p.x, p.y, hit_r, with_alpha(ACCENT, 60));
+        }
         self.clickables.push(Clickable {
             r: hit,
             action: Action::SelectFleet(f.id),
@@ -1363,14 +1413,14 @@ impl Ui {
             side.x + self.u(20.0),
             y + self.u(9.0),
             13.0,
-            ACCENT2,
+            MAGENTA,
         );
         draw_rectangle(
             side.x + self.u(12.0),
             y + self.u(3.0),
             self.u(3.0),
             self.u(13.0),
-            ACCENT2,
+            MAGENTA,
         );
         y += 18.0;
 
