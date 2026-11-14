@@ -68,6 +68,7 @@ class UI:
         self._make_background()
 
         self.clickables = []      # [(rect, action, arg, enabled)] rebuilt every frame
+        self._modal_click_start = 0
         self.mouse = (0, 0)
         self.hover = None
         self.modal = None         # 'new' | 'research' | 'diplomacy' | 'battles' | 'help' | 'gameover' | 'text'
@@ -291,7 +292,9 @@ class UI:
 
     def onMouseUp(self, event):
         if event.button == 1 and self.drag:
-            if not self.drag["moved"] and not self.modal:
+            # Modal buttons live in `clickables` too, so process every click —
+            # handle_click() gives modal entries priority and swallows the rest.
+            if not self.drag["moved"]:
                 self.handle_click(event.pos)
             self.drag = None
 
@@ -356,11 +359,17 @@ class UI:
         self.cam["y"] = max(-300, min(galaxy.HEIGHT + 300, self.cam["y"]))
 
     def handle_click(self, pos):
-        # Modals take priority — their clickables were registered last.
-        for rect, action, arg, enabled in reversed(self.clickables):
+        # Modals take priority — their clickables were registered last, and only
+        # those are live while the overlay is up.
+        start = self._modal_click_start if self.modal else 0
+        for rect, action, arg, enabled in reversed(self.clickables[start:]):
             if enabled and rect.collidepoint(pos):
                 self.do_action(action, arg, pos)
                 return
+        # While a modal is open a click that hits nothing must not fall through
+        # to the map behind the overlay.
+        if not self.modal:
+            engine.select(None)
 
     def do_action(self, action, arg, pos):
         g = engine
@@ -493,6 +502,8 @@ class UI:
             self.screen.fill(BG)
 
         if self.modal:
+            # Clicks while a modal is open only reach the modal's own buttons
+            self._modal_click_start = len(self.clickables)
             self.draw_modal()
 
         self.draw_toast()

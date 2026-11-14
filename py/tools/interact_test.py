@@ -20,6 +20,10 @@ from stellar_dominion.ui import UI  # noqa: E402
 
 
 def main():
+    class _Ev:
+        def __init__(self, **kw):
+            self.__dict__.update(kw)
+
     ui = UI()
     engine.new_game({"numAI": 3, "numSystems": 46, "difficulty": "normal",
                      "playerName": "Terran Consortium", "seed": 42})
@@ -190,6 +194,8 @@ def main():
                     ok.append(("design deleted", len(engine.list_designs(0)) == 0))
 
     # --- 13. AI empires design their own ships
+    import random as _random
+    _random.seed(2024)   # combat/anomaly rolls use the global RNG; pin it for determinism
     engine.new_game({"numAI": 3, "numSystems": 46, "difficulty": "normal",
                      "playerName": "Terran Consortium", "seed": 7})
     ui.modal = None
@@ -222,6 +228,37 @@ def main():
             errs.append(repr(exc))
             break
     ok.append(("40 UI turns, no exceptions", not errs))
+
+    # --- 15. modal buttons must work through the real mouse-click path
+    engine.new_game({"numAI": 3, "numSystems": 46, "difficulty": "normal",
+                     "playerName": "Terran Consortium", "seed": 3})
+    ui.modal = "new"
+    ui.name_input = "Click Test"
+    ui.opt_size = 34
+    ui.draw()
+    start_btn = next((c for c in ui.clickables if c[1] == "start_new_game"), None)
+    ok.append(("start button is clickable", start_btn is not None))
+    if start_btn:
+        old_state = engine.state
+        centre = start_btn[0].center
+        ui.drag = {"start": centre, "last": centre, "moved": False}
+        ui.onMouseUp(_Ev(button=1, pos=centre))
+        ok.append(("clicking Start Game starts a game",
+                   engine.state is not old_state and ui.modal is None
+                   and len(engine.state["systems"]) == 34))
+
+    # a click that hits nothing while a modal is open must not reach the map
+    ui.modal = "new"
+    ui.draw()
+    ui.handle_click((5, 5))
+    ok.append(("click outside modal is swallowed", ui.modal == "new"))
+
+    # with no modal, clicking empty space deselects
+    ui.modal = None
+    ui.draw()
+    engine.select({"type": "system", "id": engine.state["systems"][0]["id"]})
+    ui.handle_click((5, 5))
+    ok.append(("click on empty space deselects", engine.state["selected"] is None))
 
     print()
     all_ok = True
