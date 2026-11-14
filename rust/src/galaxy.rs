@@ -38,7 +38,9 @@ fn make_planet(rng: &mut impl Rng) -> Planet {
     };
 
     let richness = rng.gen_range(0.5..2.0f32);
-    let habitability = data::planet_type(kind).map(|p| p.habitability).unwrap_or(0.0);
+    let habitability = data::planet_type(kind)
+        .map(|p| p.habitability)
+        .unwrap_or(0.0);
     let max_pop = (size as f32 * habitability * 12.0).round() as i32;
 
     Planet {
@@ -94,7 +96,11 @@ fn pick_homes(systems: &[System], n: usize, rng: &mut impl Rng) -> Vec<usize> {
 }
 
 /// Generate a galaxy. Returns `(systems, home_system_ids)`.
-pub fn generate(num_systems: usize, num_empires: usize, rng: &mut impl Rng) -> (Vec<System>, Vec<usize>) {
+pub fn generate(
+    num_systems: usize,
+    num_empires: usize,
+    rng: &mut impl Rng,
+) -> (Vec<System>, Vec<usize>) {
     let mut systems: Vec<System> = Vec::new();
     let mut used: Vec<String> = Vec::new();
     let min_dist = 340.0f32;

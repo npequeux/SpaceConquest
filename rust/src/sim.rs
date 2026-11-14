@@ -14,7 +14,11 @@ pub struct Sim {
 
 impl Sim {
     pub fn new() -> Self {
-        Sim { st: None, rng: StdRng::from_entropy(), toasts: Vec::new() }
+        Sim {
+            st: None,
+            rng: StdRng::from_entropy(),
+            toasts: Vec::new(),
+        }
     }
 
     pub fn has_state(&self) -> bool {

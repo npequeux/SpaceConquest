@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::data::{self, ShipDesign, ShipStats};
 use crate::galaxy::{self, HEIGHT, WIDTH};
-use crate::state::{BattleRec, Colony, Empire, Fleet, Income, LogEntry, Move, Selection, Ship, State, System};
+use crate::state::{
+    BattleRec, Colony, Empire, Fleet, Income, LogEntry, Move, Selection, Ship, State, System,
+};
 
 pub const SENSOR_RANGE: f32 = 360.0;
 
@@ -45,7 +47,11 @@ pub fn dist(ax: f32, ay: f32, bx: f32, by: f32) -> f32 {
 }
 
 fn log(st: &mut State, kind: &str, msg: impl Into<String>) {
-    st.logs.push(LogEntry { turn: st.turn, msg: msg.into(), kind: kind.to_string() });
+    st.logs.push(LogEntry {
+        turn: st.turn,
+        msg: msg.into(),
+        kind: kind.to_string(),
+    });
     if st.logs.len() > 300 {
         let excess = st.logs.len() - 300;
         st.logs.drain(0..excess);
@@ -76,7 +82,9 @@ pub fn at_war(st: &State, a: usize, b: usize) -> bool {
 pub fn list_designs(st: &State, eid: usize) -> Vec<String> {
     let key = eid.to_string();
     match st.designs.get(&key) {
-        Some(v) => (0..v.len()).map(|i| format!("custom:{}:{}", eid, i)).collect(),
+        Some(v) => (0..v.len())
+            .map(|i| format!("custom:{}:{}", eid, i))
+            .collect(),
         None => Vec::new(),
     }
 }
@@ -208,7 +216,11 @@ pub fn effective_ship_stats(st: &State, empire: &Empire, cls: &str) -> ShipStats
 pub fn ship_cost(st: &State, empire: &Empire, cls: &str) -> (i32, i32) {
     let base = ship_def(st, cls).unwrap_or_else(|| data::ship_classes()[2].stats());
     let m = tech_modifiers(empire);
-    let mul = if cls == "colony" { m.colony_cost_mul } else { m.cost_mul };
+    let mul = if cls == "colony" {
+        m.colony_cost_mul
+    } else {
+        m.cost_mul
+    };
     (
         (base.credits as f32 * mul).round() as i32,
         (base.minerals as f32 * mul).round() as i32,
@@ -244,11 +256,19 @@ pub fn fleet_strength(st: &State, fleet: &Fleet) -> f32 {
 }
 
 pub fn empire_strength(st: &State, eid: usize) -> f32 {
-    st.fleets.iter().filter(|f| f.empire_id == eid).map(|f| fleet_strength(st, f)).sum()
+    st.fleets
+        .iter()
+        .filter(|f| f.empire_id == eid)
+        .map(|f| fleet_strength(st, f))
+        .sum()
 }
 
 pub fn empire_ship_count(st: &State, eid: usize) -> usize {
-    st.fleets.iter().filter(|f| f.empire_id == eid).map(|f| f.ships.len()).sum()
+    st.fleets
+        .iter()
+        .filter(|f| f.empire_id == eid)
+        .map(|f| f.ships.len())
+        .sum()
 }
 
 pub fn max_pop(system: &System, empire: Option<&Empire>) -> i32 {
@@ -270,7 +290,11 @@ pub fn colony_production(system: &System, col: &Colony) -> Income {
 }
 
 pub fn colony_growth_rate(col: &Colony) -> f32 {
-    0.05 * if col.buildings.iter().any(|b| b == "habitat") { 1.5 } else { 1.0 }
+    0.05 * if col.buildings.iter().any(|b| b == "habitat") {
+        1.5
+    } else {
+        1.0
+    }
 }
 
 pub fn can_colonize(empire: &Empire, system: &System) -> bool {
@@ -323,7 +347,11 @@ pub fn new_game(ctx: &mut Ctx, opts: NewGameOpts) {
         let defn = data::empire_defs()[i % data::empire_defs().len()];
         empires.push(Empire {
             id: i,
-            name: if i == 0 { opts.player_name.clone() } else { defn.name.to_string() },
+            name: if i == 0 {
+                opts.player_name.clone()
+            } else {
+                defn.name.to_string()
+            },
             color: defn.color.to_string(),
             desc: defn.desc.to_string(),
             is_player: i == 0,
@@ -387,7 +415,12 @@ pub fn new_game(ctx: &mut Ctx, opts: NewGameOpts) {
             home.planet.colony = Some(Colony {
                 empire_id: eid,
                 population: 8.0,
-                buildings: vec!["mine".into(), "market".into(), "lab".into(), "shipyard".into()],
+                buildings: vec![
+                    "mine".into(),
+                    "market".into(),
+                    "lab".into(),
+                    "shipyard".into(),
+                ],
                 queue: Vec::new(),
                 queue_progress: 0,
             });
@@ -420,7 +453,11 @@ pub fn new_game(ctx: &mut Ctx, opts: NewGameOpts) {
     }
 
     update_exploration(&mut st, ctx.rng, ctx.toasts);
-    log(&mut st, "info", "Your empire rises. Expand, research, and conquer.");
+    log(
+        &mut st,
+        "info",
+        "Your empire rises. Expand, research, and conquer.",
+    );
     log(
         &mut st,
         "info",
@@ -454,9 +491,12 @@ pub fn update_exploration(st: &mut State, rng: &mut StdRng, toasts: &mut Vec<Str
             if s.explored_by.contains(&e.id) {
                 continue;
             }
-            let near_fleet = fleet_sources.iter().any(|(x, y)| dist(*x, *y, s.x, s.y) < SENSOR_RANGE);
-            let near_colony =
-                colony_sources.iter().any(|(x, y)| dist(*x, *y, s.x, s.y) < SENSOR_RANGE);
+            let near_fleet = fleet_sources
+                .iter()
+                .any(|(x, y)| dist(*x, *y, s.x, s.y) < SENSOR_RANGE);
+            let near_colony = colony_sources
+                .iter()
+                .any(|(x, y)| dist(*x, *y, s.x, s.y) < SENSOR_RANGE);
             if !near_fleet && !near_colony {
                 continue;
             }
@@ -505,10 +545,21 @@ fn grant_anomaly(st: &mut State, eid: usize, sid: usize, toasts: &mut Vec<String
     log(
         st,
         if is_player { "good" } else { "info" },
-        format!("{} surveyed {}: {} - {} (+{})", ename, st.system(sid).map(|s| s.name.clone()).unwrap_or_default(), name, desc, bits.join(", ")),
+        format!(
+            "{} surveyed {}: {} - {} (+{})",
+            ename,
+            st.system(sid).map(|s| s.name.clone()).unwrap_or_default(),
+            name,
+            desc,
+            bits.join(", ")
+        ),
     );
     if is_player {
-        toasts.push(format!("{} discovered at {}", name, st.system(sid).map(|s| s.name.clone()).unwrap_or_default()));
+        toasts.push(format!(
+            "{} discovered at {}",
+            name,
+            st.system(sid).map(|s| s.name.clone()).unwrap_or_default()
+        ));
     }
 }
 
@@ -535,11 +586,18 @@ pub fn issue_move(st: &mut State, fleet_id: usize, target_system_id: usize) -> b
         Some(s) => (s.x, s.y),
         None => return false,
     };
-    let speed = st.fleet(fleet_id).map(|f| fleet_speed(st, f)).unwrap_or(100.0);
+    let speed = st
+        .fleet(fleet_id)
+        .map(|f| fleet_speed(st, f))
+        .unwrap_or(100.0);
     let d = dist(from.0, from.1, to.0, to.1);
     let turns = ((d / speed).ceil() as i32).max(1);
     if let Some(f) = st.fleet_mut(fleet_id) {
-        f.moves = Some(Move { to_system_id: target_system_id, turns_left: turns, total_turns: turns });
+        f.moves = Some(Move {
+            to_system_id: target_system_id,
+            turns_left: turns,
+            total_turns: turns,
+        });
     }
     true
 }
@@ -591,17 +649,18 @@ pub fn merge_fleets(st: &mut State, target_id: usize, source_id: usize) -> bool 
     if target_id == source_id {
         return false;
     }
-    let (t_emp, t_sys, t_moves, s_emp, s_sys, s_moves) = match (st.fleet(target_id), st.fleet(source_id)) {
-        (Some(t), Some(s)) => (
-            t.empire_id,
-            t.system_id,
-            t.moves.is_some(),
-            s.empire_id,
-            s.system_id,
-            s.moves.is_some(),
-        ),
-        _ => return false,
-    };
+    let (t_emp, t_sys, t_moves, s_emp, s_sys, s_moves) =
+        match (st.fleet(target_id), st.fleet(source_id)) {
+            (Some(t), Some(s)) => (
+                t.empire_id,
+                t.system_id,
+                t.moves.is_some(),
+                s.empire_id,
+                s.system_id,
+                s.moves.is_some(),
+            ),
+            _ => return false,
+        };
     if t_emp != s_emp || t_sys != s_sys || t_moves || s_moves {
         return false;
     }
@@ -642,13 +701,21 @@ pub fn merge_all_fleets_at(st: &mut State, system_id: usize, empire_id: usize) -
     }
     st.fleets.retain(|f| f.id == target || !ids.contains(&f.id));
     if empire_id == 0 {
-        let name = st.system(system_id).map(|s| s.name.clone()).unwrap_or_default();
+        let name = st
+            .system(system_id)
+            .map(|s| s.name.clone())
+            .unwrap_or_default();
         log(st, "info", format!("All fleets merged at {}.", name));
     }
     true
 }
 
-pub fn build_building(st: &mut State, system_id: usize, key: &str, toasts: &mut Vec<String>) -> bool {
+pub fn build_building(
+    st: &mut State,
+    system_id: usize,
+    key: &str,
+    toasts: &mut Vec<String>,
+) -> bool {
     let (colony, empire_id) = match st.system(system_id) {
         Some(s) => match &s.planet.colony {
             Some(c) => (c.clone(), c.empire_id),
@@ -680,7 +747,10 @@ pub fn build_building(st: &mut State, system_id: usize, key: &str, toasts: &mut 
         return false;
     }
     let name = b.name.to_string();
-    let sys_name = st.system(system_id).map(|s| s.name.clone()).unwrap_or_default();
+    let sys_name = st
+        .system(system_id)
+        .map(|s| s.name.clone())
+        .unwrap_or_default();
     if let Some(e) = st.empire_mut(empire_id) {
         e.minerals -= b.cost as f32;
     }
@@ -739,7 +809,10 @@ pub fn queue_ship(st: &mut State, system_id: usize, key: &str, toasts: &mut Vec<
         return false;
     }
     let sname = ship.name.clone();
-    let sys_name = st.system(system_id).map(|s| s.name.clone()).unwrap_or_default();
+    let sys_name = st
+        .system(system_id)
+        .map(|s| s.name.clone())
+        .unwrap_or_default();
     if let Some(e) = st.empire_mut(empire_id) {
         e.credits -= credits as f32;
         e.minerals -= minerals as f32;
@@ -767,7 +840,11 @@ pub fn set_research(st: &mut State, empire_id: usize, tech_key: &str) -> bool {
     if empire.techs.iter().any(|t| t == tech_key) {
         return false;
     }
-    if !tech.requires.iter().all(|r| empire.techs.iter().any(|t| t == r)) {
+    if !tech
+        .requires
+        .iter()
+        .all(|r| empire.techs.iter().any(|t| t == r))
+    {
         return false;
     }
     let name = tech.name.to_string();
@@ -787,7 +864,10 @@ pub fn declare_war(st: &mut State, a: usize, b: usize, toasts: &mut Vec<String>)
         (Some(ea), Some(eb)) => (ea.name.clone(), eb.name.clone(), ea.is_player, eb.is_player),
         _ => return,
     };
-    let already = st.empire(a).map(|e| e.at_war_with.contains(&b)).unwrap_or(false);
+    let already = st
+        .empire(a)
+        .map(|e| e.at_war_with.contains(&b))
+        .unwrap_or(false);
     if let Some(ea) = st.empire_mut(a) {
         ea.at_war_with.push(b);
         ea.peace_offers.retain(|x| *x != b);
@@ -817,11 +897,18 @@ pub fn make_peace(st: &mut State, a: usize, b: usize) {
         eb.at_war_with.retain(|x| *x != a);
         eb.peace_offers.retain(|x| *x != a);
     }
-    log(st, "good", format!("Peace signed between {} and {}.", an, bn));
+    log(
+        st,
+        "good",
+        format!("Peace signed between {} and {}.", an, bn),
+    );
 }
 
 pub fn offer_peace(st: &mut State, from_id: usize, to_id: usize) -> bool {
-    let at_war = st.empire(from_id).map(|e| e.at_war_with.contains(&to_id)).unwrap_or(false);
+    let at_war = st
+        .empire(from_id)
+        .map(|e| e.at_war_with.contains(&to_id))
+        .unwrap_or(false);
     if !at_war {
         return false;
     }
@@ -834,11 +921,20 @@ pub fn offer_peace(st: &mut State, from_id: usize, to_id: usize) -> bool {
             e.peace_offers.push(from_id);
         }
     }
-    log(st, "info", format!("{} offers peace to {}.", from_name, to_name));
+    log(
+        st,
+        "info",
+        format!("{} offers peace to {}.", from_name, to_name),
+    );
     true
 }
 
-pub fn player_sue_peace(st: &mut State, other_id: usize, rng: &mut StdRng, toasts: &mut Vec<String>) -> bool {
+pub fn player_sue_peace(
+    st: &mut State,
+    other_id: usize,
+    rng: &mut StdRng,
+    toasts: &mut Vec<String>,
+) -> bool {
     let me = match st.player() {
         p => p.clone(),
     };
@@ -847,13 +943,20 @@ pub fn player_sue_peace(st: &mut State, other_id: usize, rng: &mut StdRng, toast
     }
     let my_str = empire_strength(st, me.id);
     let their_str = empire_strength(st, other_id);
-    let other_name = st.empire(other_id).map(|e| e.name.clone()).unwrap_or_default();
+    let other_name = st
+        .empire(other_id)
+        .map(|e| e.name.clone())
+        .unwrap_or_default();
     if their_str < my_str * 0.7 || rng.gen::<f32>() < 0.5 {
         make_peace(st, me.id, other_id);
         toasts.push(format!("{} accepts peace", other_name));
         true
     } else {
-        log(st, "bad", format!("{} rejects your peace offer.", other_name));
+        log(
+            st,
+            "bad",
+            format!("{} rejects your peace offer.", other_name),
+        );
         toasts.push(format!("{} rejects peace", other_name));
         false
     }
@@ -935,7 +1038,12 @@ pub fn end_turn(ctx: &mut Ctx) {
     resolve_combat(st, rng, toasts);
 
     // 5) Income, growth, research
-    let emp_ids: Vec<usize> = st.empires.iter().filter(|e| e.alive).map(|e| e.id).collect();
+    let emp_ids: Vec<usize> = st
+        .empires
+        .iter()
+        .filter(|e| e.alive)
+        .map(|e| e.id)
+        .collect();
     for eid in emp_ids {
         apply_income(st, eid);
     }
@@ -963,7 +1071,10 @@ fn auto_merge_fleets(st: &mut State) {
         if f.moves.is_some() {
             continue;
         }
-        groups.entry((f.empire_id, f.system_id)).or_default().push(f.id);
+        groups
+            .entry((f.empire_id, f.system_id))
+            .or_default()
+            .push(f.id);
     }
     for ids in groups.values() {
         if ids.len() < 2 {
@@ -989,22 +1100,24 @@ fn arrive_fleet(st: &mut State, fleet_id: usize, toasts: &mut Vec<String>) {
         None => return,
     };
     let colonize_idx = match st.fleet(fleet_id) {
-        Some(f) => f.ships.iter().position(|s| {
-            ship_def(st, &s.cls).map(|d| d.colonize).unwrap_or(false)
-        }),
+        Some(f) => f
+            .ships
+            .iter()
+            .position(|s| ship_def(st, &s.cls).map(|d| d.colonize).unwrap_or(false)),
         None => None,
     };
     let can_found = match (st.system(sys_id), st.empire(empire_id)) {
-        (Some(s), Some(e)) => {
-            s.planet.colony.is_none() && can_colonize(e, s)
-        }
+        (Some(s), Some(e)) => s.planet.colony.is_none() && can_colonize(e, s),
         _ => false,
     };
     if let (Some(idx), true) = (colonize_idx, can_found) {
         if let Some(f) = st.fleet_mut(fleet_id) {
             f.ships.remove(idx);
         }
-        let sys_name = st.system(sys_id).map(|s| s.name.clone()).unwrap_or_default();
+        let sys_name = st
+            .system(sys_id)
+            .map(|s| s.name.clone())
+            .unwrap_or_default();
         if let Some(s) = st.system_mut(sys_id) {
             s.planet.colony = Some(Colony {
                 empire_id,
@@ -1016,7 +1129,10 @@ fn arrive_fleet(st: &mut State, fleet_id: usize, toasts: &mut Vec<String>) {
             s.owner_empire_id = Some(empire_id);
             s.explored_by.push(empire_id);
         }
-        let ename = st.empire(empire_id).map(|e| e.name.clone()).unwrap_or_default();
+        let ename = st
+            .empire(empire_id)
+            .map(|e| e.name.clone())
+            .unwrap_or_default();
         let is_player = st.empire(empire_id).map(|e| e.is_player).unwrap_or(false);
         log(
             st,
@@ -1030,7 +1146,10 @@ fn arrive_fleet(st: &mut State, fleet_id: usize, toasts: &mut Vec<String>) {
 }
 
 fn apply_income(st: &mut State, eid: usize) {
-    let difficulty = st.empire(eid).map(|e| e.difficulty.clone()).unwrap_or_default();
+    let difficulty = st
+        .empire(eid)
+        .map(|e| e.difficulty.clone())
+        .unwrap_or_default();
     let is_player = st.empire(eid).map(|e| e.is_player).unwrap_or(false);
     let mut minerals = 0.0f32;
     let mut credits = 0.0f32;
@@ -1078,7 +1197,11 @@ fn apply_income(st: &mut State, eid: usize) {
     if let Some(e) = st.empire_mut(eid) {
         e.minerals += minerals;
         e.credits += credits;
-        e.last_income = Income { minerals, credits, research };
+        e.last_income = Income {
+            minerals,
+            credits,
+            research,
+        };
         e.research_pool += research;
         if let Some(ref t) = current_tech {
             e.tech_progress += e.research_pool;
@@ -1093,12 +1216,18 @@ fn apply_income(st: &mut State, eid: usize) {
         }
     }
     if let Some(t) = completed {
-        let tname = data::tech(&t).map(|x| x.name.to_string()).unwrap_or_default();
+        let tname = data::tech(&t)
+            .map(|x| x.name.to_string())
+            .unwrap_or_default();
         let is_p = st.empire(eid).map(|e| e.is_player).unwrap_or(false);
         log(
             st,
             if is_p { "research" } else { "info" },
-            format!("{} completed research: {}.", st.empire(eid).map(|e| e.name.clone()).unwrap_or_default(), tname),
+            format!(
+                "{} completed research: {}.",
+                st.empire(eid).map(|e| e.name.clone()).unwrap_or_default(),
+                tname
+            ),
         );
         let _ = is_p;
     }
@@ -1136,7 +1265,13 @@ fn progress_queues(st: &mut State, toasts: &mut Vec<String>) {
     }
 }
 
-fn deliver_ship(st: &mut State, sys_id: usize, empire_id: usize, key: &str, _toasts: &mut Vec<String>) {
+fn deliver_ship(
+    st: &mut State,
+    sys_id: usize,
+    empire_id: usize,
+    key: &str,
+    _toasts: &mut Vec<String>,
+) {
     let existing = st
         .fleets
         .iter()
@@ -1167,10 +1302,16 @@ fn deliver_ship(st: &mut State, sys_id: usize, empire_id: usize, key: &str, _toa
         .map(|e| effective_ship_stats(st, e, key).hp)
         .unwrap_or(1.0);
     if let Some(f) = st.fleet_mut(fleet_id) {
-        f.ships.push(Ship { cls: key.to_string(), hp });
+        f.ships.push(Ship {
+            cls: key.to_string(),
+            hp,
+        });
     }
     let sname = ship_def(st, key).map(|d| d.name).unwrap_or_default();
-    let sys_name = st.system(sys_id).map(|s| s.name.clone()).unwrap_or_default();
+    let sys_name = st
+        .system(sys_id)
+        .map(|s| s.name.clone())
+        .unwrap_or_default();
     let is_player = st.empire(empire_id).map(|e| e.is_player).unwrap_or(false);
     log(
         st,
@@ -1249,7 +1390,11 @@ fn battle_correct(st: &State, teams: &[Team], rng: &mut StdRng) -> BattleResult 
             for s in &t.ships {
                 let target_team = enemy_teams[rng.gen_range(0..enemy_teams.len())];
                 let target_idx = rng.gen_range(0..sim[target_team].ships.len());
-                hits.push((target_team, target_idx, s.attack * rng.gen_range(0.75..1.25f32)));
+                hits.push((
+                    target_team,
+                    target_idx,
+                    s.attack * rng.gen_range(0.75..1.25f32),
+                ));
             }
         }
         for (ti, si, dmg) in hits {
@@ -1278,7 +1423,12 @@ fn battle_correct(st: &State, teams: &[Team], rng: &mut StdRng) -> BattleResult 
         losses.insert(*eid, *n - survivors.get(eid).copied().unwrap_or(0));
     }
 
-    BattleResult { winner_team, losses, survivors, rounds }
+    BattleResult {
+        winner_team,
+        losses,
+        survivors,
+        rounds,
+    }
 }
 
 fn ship_ref(st: &State, empire_id: usize, fleet_id: usize, index: usize) -> SimShip {
@@ -1296,13 +1446,24 @@ fn ship_ref(st: &State, empire_id: usize, fleet_id: usize, index: usize) -> SimS
         .empire(empire_id)
         .map(|e| effective_ship_stats(st, e, &cls).attack)
         .unwrap_or(0.0);
-    SimShip { cls, hp, attack, empire_id, ref_fleet: Some(fleet_id) }
+    SimShip {
+        cls,
+        hp,
+        attack,
+        empire_id,
+        ref_fleet: Some(fleet_id),
+    }
 }
 
 fn resolve_combat(st: &mut State, rng: &mut StdRng, toasts: &mut Vec<String>) {
     let sys_ids: Vec<usize> = st.systems.iter().map(|s| s.id).collect();
     for sid in sys_ids {
-        let fleets: Vec<Fleet> = st.fleets.iter().filter(|f| f.system_id == sid).cloned().collect();
+        let fleets: Vec<Fleet> = st
+            .fleets
+            .iter()
+            .filter(|f| f.system_id == sid)
+            .cloned()
+            .collect();
         if fleets.is_empty() {
             continue;
         }
@@ -1315,7 +1476,10 @@ fn resolve_combat(st: &mut State, rng: &mut StdRng, toasts: &mut Vec<String>) {
             }
         }
         let present: Vec<usize> = by_empire.iter().map(|(e, _)| *e).collect();
-        let has_colony = st.system(sid).and_then(|s| s.planet.colony.as_ref()).is_some();
+        let has_colony = st
+            .system(sid)
+            .and_then(|s| s.planet.colony.as_ref())
+            .is_some();
 
         // Case 1: owned system with attackers present
         if let Some(owner_id) = owner {
@@ -1380,7 +1544,11 @@ fn resolve_combat(st: &mut State, rng: &mut StdRng, toasts: &mut Vec<String>) {
                     "Space battle at {}: {} - {}.",
                     st.system(sid).map(|s| s.name.clone()).unwrap_or_default(),
                     names.join(" vs "),
-                    if let Some(w) = &winner_name { format!("{} wins", w) } else { "no survivor".to_string() }
+                    if let Some(w) = &winner_name {
+                        format!("{} wins", w)
+                    } else {
+                        "no survivor".to_string()
+                    }
                 ),
             );
             record_battle(
@@ -1469,12 +1637,22 @@ fn combat_at_owned(
     }
     for a in attackers {
         let mut ships = Vec::new();
-        for f in by_empire.iter().filter(|(e, _)| e == a).flat_map(|(_, l)| l) {
+        for f in by_empire
+            .iter()
+            .filter(|(e, _)| e == a)
+            .flat_map(|(_, l)| l)
+        {
             for i in 0..f.ships.len() {
                 ships.push(ship_ref(st, *a, f.id, i));
             }
         }
-        teams.push(Team { empire_id: *a, team: format!("atk{}", a), is_platforms: false, platform_system_id: None, ships });
+        teams.push(Team {
+            empire_id: *a,
+            team: format!("atk{}", a),
+            is_platforms: false,
+            platform_system_id: None,
+            ships,
+        });
     }
 
     let res = battle_correct(st, &teams, rng);
@@ -1520,7 +1698,10 @@ fn combat_at_owned(
         }
     }
 
-    let owner_name = st.empire(owner_id).map(|e| e.name.clone()).unwrap_or_default();
+    let owner_name = st
+        .empire(owner_id)
+        .map(|e| e.name.clone())
+        .unwrap_or_default();
     let attacker_names: Vec<String> = attackers
         .iter()
         .filter_map(|a| st.empire(*a).map(|e| e.name.clone()))
@@ -1534,7 +1715,11 @@ fn combat_at_owned(
             st.system(sid).map(|s| s.name.clone()).unwrap_or_default(),
             owner_name,
             attacker_names.join(", "),
-            if let Some(w) = &winner_name { format!("{} victorious", w) } else { "stalemate".to_string() },
+            if let Some(w) = &winner_name {
+                format!("{} victorious", w)
+            } else {
+                "stalemate".to_string()
+            },
             total_losses
         ),
     );
@@ -1555,9 +1740,16 @@ fn combat_at_owned(
     );
 
     if attacker_won {
-        if st.system(sid).and_then(|s| s.planet.colony.as_ref()).is_some() {
+        if st
+            .system(sid)
+            .and_then(|s| s.planet.colony.as_ref())
+            .is_some()
+        {
             let mut survivors: Vec<usize> = Vec::new();
-            for t in teams.iter().filter(|t| t.team.starts_with("atk") && !t.ships.is_empty()) {
+            for t in teams
+                .iter()
+                .filter(|t| t.team.starts_with("atk") && !t.ships.is_empty())
+            {
                 survivors.push(t.empire_id);
             }
             if !survivors.is_empty() {
@@ -1577,14 +1769,26 @@ fn combat_at_owned(
     true
 }
 
-fn capture_colony(st: &mut State, sid: usize, empire_id: usize, rng: &mut StdRng, toasts: &mut Vec<String>) {
+fn capture_colony(
+    st: &mut State,
+    sid: usize,
+    empire_id: usize,
+    rng: &mut StdRng,
+    toasts: &mut Vec<String>,
+) {
     let col = match st.system(sid).and_then(|s| s.planet.colony.clone()) {
         Some(c) => c,
         None => return,
     };
     let prev_id = col.empire_id;
-    let prev_name = st.empire(prev_id).map(|e| e.name.clone()).unwrap_or_default();
-    let next_name = st.empire(empire_id).map(|e| e.name.clone()).unwrap_or_default();
+    let prev_name = st
+        .empire(prev_id)
+        .map(|e| e.name.clone())
+        .unwrap_or_default();
+    let next_name = st
+        .empire(empire_id)
+        .map(|e| e.name.clone())
+        .unwrap_or_default();
     let next_player = st.empire(empire_id).map(|e| e.is_player).unwrap_or(false);
     let prev_player = st.empire(prev_id).map(|e| e.is_player).unwrap_or(false);
     let sys_name = st.system(sid).map(|s| s.name.clone()).unwrap_or_default();
@@ -1612,7 +1816,11 @@ fn capture_colony(st: &mut State, sid: usize, empire_id: usize, rng: &mut StdRng
     } else {
         "war"
     };
-    log(st, kind, format!("{} captured {} from {}.", next_name, sys_name, prev_name));
+    log(
+        st,
+        kind,
+        format!("{} captured {} from {}.", next_name, sys_name, prev_name),
+    );
     if next_player {
         toasts.push(format!("Captured {}!", sys_name));
     }
@@ -1625,21 +1833,30 @@ fn capture_colony(st: &mut State, sid: usize, empire_id: usize, rng: &mut StdRng
 // Elimination and victory
 // ---------------------------------------------------------------------------
 fn update_alive(st: &mut State, toasts: &mut Vec<String>) {
-    let ids: Vec<usize> = st.empires.iter().filter(|e| e.alive).map(|e| e.id).collect();
+    let ids: Vec<usize> = st
+        .empires
+        .iter()
+        .filter(|e| e.alive)
+        .map(|e| e.id)
+        .collect();
     for eid in ids {
         let colonies = st
             .systems
             .iter()
             .filter(|s| s.planet.colony.as_ref().map(|c| c.empire_id) == Some(eid))
             .count();
-        let has_colony_ship = st
-            .fleets
-            .iter()
-            .filter(|f| f.empire_id == eid)
-            .any(|f| f.ships.iter().any(|s| ship_def(st, &s.cls).map(|d| d.colonize).unwrap_or(false)));
+        let has_colony_ship = st.fleets.iter().filter(|f| f.empire_id == eid).any(|f| {
+            f.ships
+                .iter()
+                .any(|s| ship_def(st, &s.cls).map(|d| d.colonize).unwrap_or(false))
+        });
         let queued_colony = st.systems.iter().any(|s| {
             s.planet.colony.as_ref().map(|c| c.empire_id) == Some(eid)
-                && s.planet.colony.as_ref().map(|c| c.queue.iter().any(|q| q == "colony")).unwrap_or(false)
+                && s.planet
+                    .colony
+                    .as_ref()
+                    .map(|c| c.queue.iter().any(|q| q == "colony"))
+                    .unwrap_or(false)
         });
         if colonies == 0 && !has_colony_ship && !queued_colony {
             let name = st.empire(eid).map(|e| e.name.clone()).unwrap_or_default();
@@ -1648,7 +1865,11 @@ fn update_alive(st: &mut State, toasts: &mut Vec<String>) {
                 e.alive = false;
             }
             st.fleets.retain(|f| f.empire_id != eid);
-            log(st, if is_player { "bad" } else { "war" }, format!("{} has been eliminated.", name));
+            log(
+                st,
+                if is_player { "bad" } else { "war" },
+                format!("{} has been eliminated.", name),
+            );
             if is_player {
                 toasts.push("Your empire has fallen.".into());
             }
@@ -1660,7 +1881,12 @@ fn check_victory(st: &mut State, toasts: &mut Vec<String>) {
     if st.over {
         return;
     }
-    let alive: Vec<usize> = st.empires.iter().filter(|e| e.alive).map(|e| e.id).collect();
+    let alive: Vec<usize> = st
+        .empires
+        .iter()
+        .filter(|e| e.alive)
+        .map(|e| e.id)
+        .collect();
     let p = st.player().clone();
     if !p.alive {
         st.over = true;
@@ -1674,11 +1900,7 @@ fn check_victory(st: &mut State, toasts: &mut Vec<String>) {
         log(st, "good", "Victory! The galaxy is yours.");
         return;
     }
-    let colonizable = st
-        .systems
-        .iter()
-        .filter(|s| can_colonize(&p, s))
-        .count();
+    let colonizable = st.systems.iter().filter(|s| can_colonize(&p, s)).count();
     let mine = st
         .systems
         .iter()

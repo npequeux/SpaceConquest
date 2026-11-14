@@ -1,7 +1,7 @@
 //! Serializable game state. These types are written to disk by `save_game`.
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub struct Income {
@@ -244,7 +244,10 @@ impl State {
 
     /// systems owned by an empire
     pub fn empire_systems(&self, eid: usize) -> Vec<&System> {
-        self.systems.iter().filter(|s| s.owner_empire_id == Some(eid)).collect()
+        self.systems
+            .iter()
+            .filter(|s| s.owner_empire_id == Some(eid))
+            .collect()
     }
 
     pub fn empire_colonies(&self, eid: usize) -> Vec<&System> {
@@ -259,7 +262,10 @@ impl State {
     }
 
     pub fn fleets_at(&self, system_id: usize) -> Vec<&Fleet> {
-        self.fleets.iter().filter(|f| f.system_id == system_id).collect()
+        self.fleets
+            .iter()
+            .filter(|f| f.system_id == system_id)
+            .collect()
     }
 
     pub fn is_explored(&self, system: &System, eid: usize) -> bool {

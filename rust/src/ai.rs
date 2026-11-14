@@ -8,17 +8,24 @@ use crate::engine as g;
 use crate::state::{Empire, Fleet, State};
 
 const RESEARCH_PRIORITY: &[&str] = &[
-    "construction1", "weapons1", "engines1", "colonization1", "shields1",
-    "construction2", "weapons2", "engines2", "colonization2", "shields2",
-    "construction3", "weapons3", "engines3", "colonization3", "shields3",
+    "construction1",
+    "weapons1",
+    "engines1",
+    "colonization1",
+    "shields1",
+    "construction2",
+    "weapons2",
+    "engines2",
+    "colonization2",
+    "shields2",
+    "construction3",
+    "weapons3",
+    "engines3",
+    "colonization3",
+    "shields3",
 ];
 
-pub fn take_turn(
-    st: &mut State,
-    eid: usize,
-    rng: &mut impl Rng,
-    toasts: &mut Vec<String>,
-) {
+pub fn take_turn(st: &mut State, eid: usize, rng: &mut impl Rng, toasts: &mut Vec<String>) {
     maybe_design(st, eid);
     choose_research(st, eid);
     manage_colonies(st, eid, rng, toasts);
@@ -30,7 +37,11 @@ pub fn take_turn(
 // Research
 // ---------------------------------------------------------------------------
 fn choose_research(st: &mut State, eid: usize) {
-    if st.empire(eid).and_then(|e| e.current_tech.clone()).is_some() {
+    if st
+        .empire(eid)
+        .and_then(|e| e.current_tech.clone())
+        .is_some()
+    {
         return;
     }
     for key in RESEARCH_PRIORITY {
@@ -45,7 +56,11 @@ fn choose_research(st: &mut State, eid: usize) {
         if empire.techs.iter().any(|t| t == key) {
             continue;
         }
-        if !tech.requires.iter().all(|r| empire.techs.iter().any(|t| t == r)) {
+        if !tech
+            .requires
+            .iter()
+            .all(|r| empire.techs.iter().any(|t| t == r))
+        {
             continue;
         }
         if let Some(e) = st.empire_mut(eid) {
@@ -108,7 +123,9 @@ fn manage_colonies(st: &mut State, eid: usize, rng: &mut impl Rng, toasts: &mut 
             }
         }
 
-        for key in ["mine", "lab", "market", "mine", "lab", "market", "habitat", "shield"] {
+        for key in [
+            "mine", "lab", "market", "mine", "lab", "market", "habitat", "shield",
+        ] {
             if buildings.len() as i32 >= slots {
                 break;
             }
@@ -137,7 +154,10 @@ fn choose_ship(st: &mut State, eid: usize, rng: &mut impl Rng) -> Option<String>
             if s.cls == "colony" {
                 colony_ships += 1;
             }
-            if g::ship_def(st, &s.cls).map(|d| d.attack > 0.0).unwrap_or(false) {
+            if g::ship_def(st, &s.cls)
+                .map(|d| d.attack > 0.0)
+                .unwrap_or(false)
+            {
                 military += 1;
             }
         }
@@ -172,7 +192,10 @@ fn choose_ship(st: &mut State, eid: usize, rng: &mut impl Rng) -> Option<String>
     }
 
     let mut scored: Vec<(f32, String, i32, i32)> = Vec::new();
-    let mut candidates: Vec<String> = data::ship_classes().iter().map(|c| c.key.to_string()).collect();
+    let mut candidates: Vec<String> = data::ship_classes()
+        .iter()
+        .map(|c| c.key.to_string())
+        .collect();
     candidates.extend(g::list_designs(st, eid));
     for key in candidates {
         let ship = match g::ship_def(st, &key) {
@@ -291,7 +314,11 @@ fn manage_fleets(st: &mut State, eid: usize, rng: &mut impl Rng) {
     for fid in &idle {
         let has_colony = st
             .fleet(*fid)
-            .map(|f| f.ships.iter().any(|s| g::ship_def(st, &s.cls).map(|d| d.colonize).unwrap_or(false)))
+            .map(|f| {
+                f.ships
+                    .iter()
+                    .any(|s| g::ship_def(st, &s.cls).map(|d| d.colonize).unwrap_or(false))
+            })
             .unwrap_or(false);
         if has_colony {
             if let Some(target) = best_colonization_target(st, *fid, eid) {
@@ -305,7 +332,13 @@ fn manage_fleets(st: &mut State, eid: usize, rng: &mut impl Rng) {
         .copied()
         .filter(|fid| {
             st.fleet(*fid)
-                .map(|f| f.ships.iter().any(|s| g::ship_def(st, &s.cls).map(|d| d.attack > 0.0).unwrap_or(false)))
+                .map(|f| {
+                    f.ships.iter().any(|s| {
+                        g::ship_def(st, &s.cls)
+                            .map(|d| d.attack > 0.0)
+                            .unwrap_or(false)
+                    })
+                })
                 .unwrap_or(false)
         })
         .collect();
@@ -334,7 +367,10 @@ fn manage_fleets(st: &mut State, eid: usize, rng: &mut impl Rng) {
         if intruders.is_empty() {
             continue;
         }
-        let def_str: f32 = intruders.iter().map(|f| g::fleet_strength(st, st.fleet(*f).unwrap())).sum();
+        let def_str: f32 = intruders
+            .iter()
+            .map(|f| g::fleet_strength(st, st.fleet(*f).unwrap()))
+            .sum();
         let mut candidates: Vec<usize> = military.clone();
         candidates.sort_by(|a, b| {
             let da = {
@@ -462,7 +498,9 @@ fn best_colonization_target(st: &State, fleet_id: usize, eid: usize) -> Option<u
             continue;
         }
         let d = g::dist(fx, fy, s.x, s.y);
-        let hab = data::planet_type(&s.planet.kind).map(|p| p.habitability).unwrap_or(0.0);
+        let hab = data::planet_type(&s.planet.kind)
+            .map(|p| p.habitability)
+            .unwrap_or(0.0);
         let score = hab * 100.0 - d * 0.05 + s.planet.richness * 5.0;
         if score > best_score {
             best_score = score;
@@ -483,7 +521,10 @@ fn diplomacy(st: &mut State, eid: usize, rng: &mut impl Rng, toasts: &mut Vec<St
         .map(|o| o.id)
         .collect();
     for other in others {
-        let at_war = st.empire(eid).map(|e| e.at_war_with.contains(&other)).unwrap_or(false);
+        let at_war = st
+            .empire(eid)
+            .map(|e| e.at_war_with.contains(&other))
+            .unwrap_or(false);
         let my_str = g::empire_strength(st, eid);
         let their_str = g::empire_strength(st, other);
         let other_is_player = st.empire(other).map(|e| e.is_player).unwrap_or(false);
@@ -491,12 +532,10 @@ fn diplomacy(st: &mut State, eid: usize, rng: &mut impl Rng, toasts: &mut Vec<St
         if !at_war {
             // Avoid dogpiling: only one rival may be at war with the player at a time.
             if other_is_player {
-                let already = st.empires.iter().any(|e| {
-                    e.alive
-                        && !e.is_player
-                        && e.id != eid
-                        && g::at_war(st, e.id, other)
-                });
+                let already = st
+                    .empires
+                    .iter()
+                    .any(|e| e.alive && !e.is_player && e.id != eid && g::at_war(st, e.id, other));
                 if already {
                     continue;
                 }
