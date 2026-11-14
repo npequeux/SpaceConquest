@@ -72,3 +72,9 @@ impl Sim {
         std::mem::take(&mut self.toasts)
     }
 }
+
+impl Default for Sim {
+    fn default() -> Self {
+        Self::new()
+    }
+}

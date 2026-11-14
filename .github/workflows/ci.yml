@@ -15,6 +15,11 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - run: rustup component add clippy
+
+      - name: Lint (headless simulation)
+        run: cargo clippy --no-default-features --all-targets -- -D warnings
+
       - name: Build (headless simulation)
         run: cargo build --no-default-features
 
@@ -31,5 +36,45 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - run: rustup component add clippy
+
+      - name: Lint (macroquad frontend)
+        run: cargo clippy --all-targets -- -D warnings
+
       - name: Build the macroquad frontend
         run: cargo build
+
+  # Release build on every push and merge; a pushed tag also publishes a
+  # GitHub release carrying the Windows executable.
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build the release binary
+        run: cargo build --release
+
+      - name: Upload the Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: stellar-dominion-windows
+          path: rust/target/release/stellar-dominion.exe
+          if-no-files-found: error
+
+      - name: Publish a GitHub release for tags
+        if: startsWith(github.ref, 'refs/tags/')
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          gh release create "${GITHUB_REF_NAME}"
+          "target/release/stellar-dominion.exe#stellar-dominion-${GITHUB_REF_NAME}.exe"
+          --title "Stellar Dominion ${GITHUB_REF_NAME}"
+          --notes "Windows build of Stellar Dominion ${GITHUB_REF_NAME}."

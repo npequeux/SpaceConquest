@@ -101,6 +101,20 @@ Rust:
 
 ```bash
 cd rust
-cargo test --no-default-features   # headless simulation tests
-cargo clippy --no-default-features
+cargo test --no-default-features              # headless simulation tests
+cargo clippy --no-default-features --all-targets -- -D warnings
+cargo clippy --all-targets -- -D warnings     # needs the macroquad toolchain
+cargo build --release                         # Windows executable
 ```
+
+CI (`.github/workflows/ci.yml`) runs on every push and pull request:
+
+| Job | Runner | What it does |
+| --- | --- | --- |
+| `rust` | ubuntu | clippy (headless), build, test |
+| `ui` | windows | clippy (macroquad frontend), build |
+| `release` | windows | `cargo build --release`, upload the exe as a run artifact |
+
+Pushing a tag (`git tag v3.0.0 && git push origin v3.0.0`) additionally creates a
+GitHub release with the Windows executable attached.
+

@@ -494,7 +494,7 @@ impl Ui {
             if self.modal.is_some() {
                 self.modal = None;
             } else {
-                if let Some(mut ctx) = sim.ctx() {
+                if let Some(ctx) = sim.ctx() {
                     engine::select(ctx.st, None);
                 }
             }
@@ -522,7 +522,7 @@ impl Ui {
             if self.modal.is_some() {
                 self.modal = None;
             } else if sim.has_state() {
-                if let Some(mut ctx) = sim.ctx() {
+                if let Some(ctx) = sim.ctx() {
                     engine::select(ctx.st, None);
                 }
             }
@@ -585,7 +585,7 @@ impl Ui {
             Some(a) => a,
             None => {
                 if self.modal.is_none() {
-                    if let Some(mut ctx) = sim.ctx() {
+                    if let Some(ctx) = sim.ctx() {
                         engine::select(ctx.st, None);
                     }
                 }
@@ -610,7 +610,7 @@ impl Ui {
                             if empire_id == 0 {
                                 if let Some(t) = target {
                                     if from != t.id {
-                                        let mut ctx = sim.ctx().unwrap();
+                                        let ctx = sim.ctx().unwrap();
                                         if engine::issue_move(ctx.st, sel.id, t.id) {
                                             ctx.toasts.push(format!("Fleet moving to {}", t.name));
                                             move_issued = true;
@@ -622,7 +622,7 @@ impl Ui {
                     }
                 }
                 if !move_issued {
-                    if let Some(mut ctx) = sim.ctx() {
+                    if let Some(ctx) = sim.ctx() {
                         engine::select(
                             ctx.st,
                             Some(crate::state::Selection {
@@ -634,7 +634,7 @@ impl Ui {
                 }
             }
             Action::SelectFleet(id) => {
-                if let Some(mut ctx) = sim.ctx() {
+                if let Some(ctx) = sim.ctx() {
                     engine::select(
                         ctx.st,
                         Some(crate::state::Selection {
@@ -665,7 +665,7 @@ impl Ui {
                 if let Some(st) = sim.state() {
                     if let Some(sel) = st.selected.clone() {
                         if sel.kind == "system" {
-                            if let Some(mut ctx) = sim.ctx() {
+                            if let Some(ctx) = sim.ctx() {
                                 engine::build_building(ctx.st, sel.id, &key, ctx.toasts);
                             }
                         }
@@ -676,7 +676,7 @@ impl Ui {
                 if let Some(st) = sim.state() {
                     if let Some(sel) = st.selected.clone() {
                         if sel.kind == "system" {
-                            if let Some(mut ctx) = sim.ctx() {
+                            if let Some(ctx) = sim.ctx() {
                                 engine::queue_ship(ctx.st, sel.id, &key, ctx.toasts);
                             }
                         }
@@ -687,7 +687,7 @@ impl Ui {
                 if let Some(st) = sim.state() {
                     if let Some(sel) = st.selected.clone() {
                         if sel.kind == "fleet" {
-                            if let Some(mut ctx) = sim.ctx() {
+                            if let Some(ctx) = sim.ctx() {
                                 engine::split_fleet(ctx.st, sel.id);
                             }
                         }
@@ -698,7 +698,7 @@ impl Ui {
                 if let Some(st) = sim.state() {
                     if let Some(sel) = st.selected.clone() {
                         if sel.kind == "fleet" {
-                            if let Some(mut ctx) = sim.ctx() {
+                            if let Some(ctx) = sim.ctx() {
                                 engine::stop_fleet(ctx.st, sel.id);
                             }
                         }
@@ -706,7 +706,7 @@ impl Ui {
                 }
             }
             Action::MergeInto(a, b) => {
-                if let Some(mut ctx) = sim.ctx() {
+                if let Some(ctx) = sim.ctx() {
                     engine::merge_fleets(ctx.st, a, b);
                 }
             }
@@ -716,28 +716,28 @@ impl Ui {
                         Some(f) => (f.system_id, f.empire_id),
                         None => return,
                     };
-                    if let Some(mut ctx) = sim.ctx() {
+                    if let Some(ctx) = sim.ctx() {
                         engine::merge_all_fleets_at(ctx.st, sys_id, emp);
                     }
                 }
             }
             Action::SetTech(key) => {
-                if let Some(mut ctx) = sim.ctx() {
+                if let Some(ctx) = sim.ctx() {
                     engine::set_research(ctx.st, 0, &key);
                 }
             }
             Action::DeclareWar(id) => {
-                if let Some(mut ctx) = sim.ctx() {
+                if let Some(ctx) = sim.ctx() {
                     engine::declare_war(ctx.st, 0, id, ctx.toasts);
                 }
             }
             Action::SuePeace(id) => {
-                if let Some(mut ctx) = sim.ctx() {
+                if let Some(ctx) = sim.ctx() {
                     engine::player_sue_peace(ctx.st, id, ctx.rng, ctx.toasts);
                 }
             }
             Action::AcceptPeace(id) => {
-                if let Some(mut ctx) = sim.ctx() {
+                if let Some(ctx) = sim.ctx() {
                     engine::make_peace(ctx.st, 0, id);
                 }
             }
@@ -778,7 +778,7 @@ impl Ui {
                 } else {
                     self.d_name.trim().to_string()
                 };
-                if let Some(mut ctx) = sim.ctx() {
+                if let Some(ctx) = sim.ctx() {
                     let key = engine::add_design(
                         ctx.st,
                         0,
@@ -796,7 +796,7 @@ impl Ui {
                 self.modal = None;
             }
             Action::DeleteDesign(key) => {
-                if let Some(mut ctx) = sim.ctx() {
+                if let Some(ctx) = sim.ctx() {
                     engine::remove_design(ctx.st, &key);
                 }
             }
@@ -1095,7 +1095,7 @@ impl Ui {
                 p.x,
                 p.y,
                 s.r.max(1.0),
-                Color::from_rgba(b, b, (b + 30).min(255), 255),
+                Color::from_rgba(b, b, b.saturating_add(30), 255),
             );
         }
 
@@ -1974,6 +1974,12 @@ impl Ui {
     }
 }
 
+impl Default for Ui {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Modals
 // ---------------------------------------------------------------------------
@@ -2513,6 +2519,9 @@ impl Ui {
         self.close_button(box_r);
     }
 
+    // A row builder needs the module table, the selection and the tech state;
+    // grouping them would only add indirection.
+    #[allow(clippy::too_many_arguments)]
     fn module_row(
         &mut self,
         x: f32,

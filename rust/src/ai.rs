@@ -5,7 +5,7 @@ use rand::Rng;
 
 use crate::data;
 use crate::engine as g;
-use crate::state::{Empire, Fleet, State};
+use crate::state::{Empire, State};
 
 const RESEARCH_PRIORITY: &[&str] = &[
     "construction1",
@@ -116,11 +116,12 @@ fn manage_colonies(st: &mut State, eid: usize, rng: &mut impl Rng, toasts: &mut 
             None => (Vec::new(), 0.0, 0),
         };
 
-        if !buildings.iter().any(|b| b == "shipyard") && (buildings.len() as i32) < slots {
-            if g::build_building(st, *sid, "shipyard", toasts) {
-                builds += 1;
-                continue;
-            }
+        if !buildings.iter().any(|b| b == "shipyard")
+            && (buildings.len() as i32) < slots
+            && g::build_building(st, *sid, "shipyard", toasts)
+        {
+            builds += 1;
+            continue;
         }
 
         for key in [
@@ -175,9 +176,9 @@ fn choose_ship(st: &mut State, eid: usize, rng: &mut impl Rng) -> Option<String>
         .iter()
         .filter(|s| s.planet.colony.as_ref().map(|c| c.empire_id) == Some(eid))
         .count();
-    let empire = match st.empire(eid) {
-        Some(e) => e.clone(),
-        None => return None,
+    let empire = {
+        let e = st.empire(eid)?;
+        e.clone()
     };
     let targets: Vec<usize> = st
         .systems
