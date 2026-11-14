@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stellar Dominion</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #060910;
+    overflow: hidden;
+  }
+  #glcanvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    outline: none;
+    cursor: crosshair;
+  }
+  #status {
+    position: fixed;
+    left: 14px;
+    bottom: 12px;
+    color: #a0afd0;
+    font: 13px/1.4 system-ui, sans-serif;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="glcanvas" tabindex="0"></canvas>
+<div id="status">Loading Stellar Dominion&hellip;</div>
+<script src="mq_js_bundle.js"></script>
+<script>
+  // Back getrandom on the wasm side (see the `wasm_entropy` module in main.rs).
+  // `importObject` is macroquad's global glue object; adding the import before
+  // load() runs means the wasm finds it at instantiation time.
+  importObject.env.sd_fill_random = (ptr, len) => {
+    const mem = new Uint8Array(wasm_memory.buffer, ptr, len);
+    crypto.getRandomValues(mem);
+  };
+
+  // mq_js_bundle.js exposes load(wasmUrl); it needs the #glcanvas element.
+  load("stellar-dominion.wasm");
+  const status = document.getElementById("status");
+  const watcher = setInterval(() => {
+    const canvas = document.getElementById("glcanvas");
+    if (canvas.width > 0 && canvas.height > 0) {
+      status.style.display = "none";
+      clearInterval(watcher);
+    }
+  }, 400);
+  setTimeout(() => {
+    if (status.style.display !== "none") {
+      status.textContent = "Still loading — a WebGL-capable browser is required.";
+    }
+  }, 15000);
+</script>
+</body>
+</html>

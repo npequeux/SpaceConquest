@@ -114,7 +114,12 @@ CI (`.github/workflows/ci.yml`) runs on every push and pull request:
 | `rust` | ubuntu | clippy (headless), build, test |
 | `ui` | windows | clippy (macroquad frontend), build |
 | `release` | windows | `cargo build --release`, upload the exe as a run artifact |
+| `pages` | ubuntu | `cargo build --release --target wasm32-unknown-unknown`, deploy to Pages |
 
-Pushing a tag (`git tag v3.0.0 && git push origin v3.0.0`) additionally creates a
-GitHub release with the Windows executable attached.
+Every push to `main` also moves the prerelease GitHub release
+[`latest`](https://github.com/npequeux/SpaceConquest/releases/tag/latest) to the
+new build, and redeploys the browser version to
+<https://npequeux.github.io/SpaceConquest/>. Pushing a tag
+(`git tag v3.0.0 && git push origin v3.0.0`) creates a separate, non-moving
+release for that version.
 
