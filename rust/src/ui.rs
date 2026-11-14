@@ -344,17 +344,19 @@ impl Ui {
         (mw, mh, sc, ox, oy)
     }
 
+    /// World -> screen coordinates.
     fn w2s(&self, map: Rect, wx: f32, wy: f32) -> Vec2 {
         vec2(
-            (wx - self.cam_x) * self.zoom + map.w / 2.0,
-            (wy - self.cam_y) * self.zoom + map.h / 2.0,
+            (wx - self.cam_x) * self.zoom + map.w / 2.0 + map.x,
+            (wy - self.cam_y) * self.zoom + map.h / 2.0 + map.y,
         )
     }
 
+    /// Screen -> world coordinates.
     fn s2w(&self, map: Rect, sx: f32, sy: f32) -> Vec2 {
         vec2(
-            (sx - map.w / 2.0) / self.zoom + self.cam_x,
-            (sy - map.h / 2.0) / self.zoom + self.cam_y,
+            (sx - map.x - map.w / 2.0) / self.zoom + self.cam_x,
+            (sy - map.y - map.h / 2.0) / self.zoom + self.cam_y,
         )
     }
 
@@ -526,8 +528,7 @@ impl Ui {
             if side.contains(mouse) {
                 self.log_scroll = (self.log_scroll - wheel.1 * 3.0 * 8.0).max(0.0);
             } else if map.contains(mouse) {
-                let mx = mouse.x - map.x;
-                let my = mouse.y - map.y;
+                let (mx, my) = (mouse.x, mouse.y);
                 let before = self.s2w(map, mx, my);
                 self.zoom = (self.zoom * if wheel.1 > 0.0 { 1.12 } else { 0.89 }).clamp(0.12, 2.6);
                 let after = self.s2w(map, mx, my);
@@ -1274,12 +1275,7 @@ impl Ui {
 
         // generous hit target: small stars should not need pixel-hunting
         let hit_r = (r + self.u(12.0)).max(self.u(18.0));
-        let hit = rect(
-            p.x + map.x - hit_r,
-            p.y + map.y - hit_r,
-            hit_r * 2.0,
-            hit_r * 2.0,
-        );
+        let hit = rect(p.x - hit_r, p.y - hit_r, hit_r * 2.0, hit_r * 2.0);
         if hit.contains(mouse_position().into()) {
             draw_circle(p.x, p.y, hit_r, with_alpha(ACCENT, 60));
             draw_circle(p.x, p.y, hit_r, with_alpha(ACCENT, 150));
@@ -1337,12 +1333,7 @@ impl Ui {
         self.text(&cnt, p.x + fs + 2.0, p.y - fs, 13.0, c(235, 242, 255));
 
         let hit_r = self.u(18.0);
-        let hit = rect(
-            p.x + map.x - hit_r,
-            p.y + map.y - hit_r,
-            hit_r * 2.0,
-            hit_r * 2.0,
-        );
+        let hit = rect(p.x - hit_r, p.y - hit_r, hit_r * 2.0, hit_r * 2.0);
         if hit.contains(mouse_position().into()) {
             draw_circle(p.x, p.y, hit_r, with_alpha(ACCENT, 60));
         }
@@ -1524,8 +1515,8 @@ impl Ui {
             );
         }
         let (map, _side, _panel, _top) = self.layout();
-        let tl = self.s2w(map, 0.0, 0.0);
-        let br = self.s2w(map, map.w, map.h);
+        let tl = self.s2w(map, map.x, map.y);
+        let br = self.s2w(map, map.x + map.w, map.y + map.h);
         let vx = mm.x + ox + tl.x * sc;
         let vy = mm.y + oy + tl.y * sc;
         let vw = (br.x - tl.x) * sc;
