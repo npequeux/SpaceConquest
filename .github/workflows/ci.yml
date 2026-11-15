@@ -92,7 +92,7 @@ jobs:
 
       - name: Package
         shell: bash
-        run: ./install/package.sh "${{ matrix.slug }}" "${{ matrix.target }}" "${{ matrix.kind }}"
+        run: bash ./install/package.sh "${{ matrix.slug }}" "${{ matrix.target }}" "${{ matrix.kind }}"
 
       - name: Upload the package
         uses: actions/upload-artifact@v4
