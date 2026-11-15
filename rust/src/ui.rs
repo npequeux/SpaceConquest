@@ -47,6 +47,7 @@ const COPPER: Color = Color::from_rgba(226, 116, 61, 255);
 const MAGENTA: Color = Color::from_rgba(236, 112, 196, 255);
 const WHITE: Color = Color::from_rgba(255, 255, 255, 255);
 const BLACK: Color = Color::from_rgba(4, 6, 12, 255);
+const SHADOW: Color = Color::from_rgba(2, 3, 7, 200);
 
 const TOP_H: f32 = 52.0;
 const SIDEBAR_W: f32 = 280.0;
@@ -182,6 +183,9 @@ pub struct Ui {
     cam_x: f32,
     cam_y: f32,
     zoom: f32,
+    /// Interface font. macroquad's bundled face is ProggyClean, a pixel font
+    /// that turns to mush above ~14px; Inter stays crisp and legible.
+    font: macroquad::text::Font,
     /// Global UI scale: the interface is laid out at a 1024x640 reference and
     /// multiplied by this, so text and panels stay legible on large or hi-DPI
     /// displays instead of shrinking with the window.
@@ -221,6 +225,12 @@ fn bottom(r: Rect) -> f32 {
 
 impl Ui {
     pub fn new() -> Self {
+        // Bundled UI face (SIL Open Font License, see assets/Inter.ttf).
+        // Fall back to macroquad's default if it ever fails to parse.
+        let mut font =
+            macroquad::text::load_ttf_font_from_bytes(include_bytes!("../assets/Inter.ttf"))
+                .unwrap_or_else(|_| macroquad::text::get_default_font());
+        font.set_filter(macroquad::prelude::FilterMode::Nearest);
         let mut rng = StdRng::seed_from_u64(12345);
         use ::rand::Rng;
         let starfield: Vec<Star> = (0..1400)
@@ -245,6 +255,7 @@ impl Ui {
             .collect();
 
         Ui {
+            font,
             cam_x: 1800.0,
             cam_y: 1200.0,
             zoom: 0.45,
@@ -291,28 +302,40 @@ impl Ui {
         v * self.scale
     }
 
-    /// Monitor DPI scale. macroquad's font sizes are *logical* units: it
-    /// rasterises at `size * dpi` and draws at `size`, while the rest of the
-    /// interface is laid out in physical pixels. Dividing by this keeps text
-    /// exactly the size the layout expects instead of 1.25x too large.
-    fn dpi(&self) -> f32 {
-        let d = macroquad::window::screen_dpi_scale();
-        if d > 0.0 {
-            d
-        } else {
-            1.0
-        }
-    }
-
     fn text(&self, s: &str, x: f32, y: f32, size: f32, color: Color) {
-        let logical = (size * self.scale / self.dpi()).max(1.0);
-        draw_text(s, x, y, logical, color);
+        // macroquad's drawing units are *logical* pixels (the default
+        // projection is screen_size/dpi), and so are its font sizes: passing
+        // size*scale renders text size*scale logical px tall, which is what
+        // the layout rects are measured in. Do not divide by dpi here.
+        let params = TextParams {
+            font: Some(&self.font),
+            font_size: (size * self.scale).max(1.0) as u16,
+            font_scale: 1.0,
+            color,
+            ..Default::default()
+        };
+        // a 1px shadow keeps labels legible over the starfield
+        draw_text_ex(
+            s,
+            x + self.scale,
+            y + self.scale,
+            TextParams {
+                color: SHADOW,
+                ..params.clone()
+            },
+        );
+        draw_text_ex(s, x, y, params);
     }
 
-    /// Physical-pixel width of a string set at a design size.
+    /// Logical-pixel width of a string set at a design size.
     fn text_width(&self, s: &str, size: f32) -> f32 {
-        let logical = (size * self.scale / self.dpi()).max(1.0);
-        measure_text(s, None, logical.round() as u16, 1.0).width * self.dpi()
+        measure_text(
+            s,
+            Some(&self.font),
+            (size * self.scale).max(1.0) as u16,
+            1.0,
+        )
+        .width
     }
 
     fn layout(&self) -> (Rect, Rect, Rect, Rect) {
@@ -472,7 +495,7 @@ impl Ui {
     }
 
     fn hint(&self, s: &str, x: f32, y: f32, color: Color) {
-        self.text(s, x, y, 13.0, color);
+        self.text(s, x, y, 15.0, color);
     }
 
     // ------------------------------------------------------------------
@@ -928,7 +951,7 @@ impl Ui {
                 self.toast = None;
                 return;
             }
-            let tw = self.text_width(&msg, 14.0);
+            let tw = self.text_width(&msg, 16.0);
             let box_r = rect(
                 screen_width() / 2.0 - tw / 2.0 - self.u(12.0),
                 58.0,
@@ -947,7 +970,7 @@ impl Ui {
                 &msg,
                 box_r.x + self.u(12.0),
                 box_r.y + self.u(18.0),
-                14.0,
+                16.0,
                 TEXT,
             );
         }
@@ -955,7 +978,7 @@ impl Ui {
 
     fn draw_map_hint(&self, map: Rect) {
         let s = "Click a system or fleet to select | with a fleet selected, click a system to move | drag to pan | scroll to zoom | right-click to deselect";
-        let tw = self.text_width(s, 12.0);
+        let tw = self.text_width(s, 13.0);
         let box_r = rect(
             screen_width() / 2.0 - tw / 2.0 - self.u(8.0),
             map.y + map.h - self.u(26.0),
@@ -974,7 +997,7 @@ impl Ui {
             s,
             box_r.x + self.u(8.0),
             box_r.y + self.u(13.0),
-            12.0,
+            13.0,
             MUTED,
         );
     }
@@ -990,8 +1013,8 @@ impl Ui {
 
         let mid = top.h * 0.5;
         let mut x = self.u(14.0);
-        self.text("STELLAR DOMINION", x, mid + self.u(5.0), 18.0, ACCENT);
-        x += self.text_width("STELLAR DOMINION", 18.0) + self.u(20.0);
+        self.text("STELLAR DOMINION", x, mid + self.u(5.0), 20.0, ACCENT);
+        x += self.text_width("STELLAR DOMINION", 20.0) + self.u(20.0);
         // thin separator between the title and the resource readout
         draw_line(
             x - self.u(11.0),
@@ -1046,8 +1069,8 @@ impl Ui {
             ),
         ];
         for (s, col) in items {
-            self.text(&s, x, mid + self.u(4.0), 14.0, col);
-            x += self.text_width(&s, 14.0) + self.u(16.0);
+            self.text(&s, x, mid + self.u(4.0), 16.0, col);
+            x += self.text_width(&s, 16.0) + self.u(16.0);
         }
 
         let buttons: Vec<(&str, Action, Style)> = vec![
@@ -1062,7 +1085,7 @@ impl Ui {
         ];
         let widths: Vec<f32> = buttons
             .iter()
-            .map(|(l, _, _)| self.text_width(l, 14.0) + self.u(22.0))
+            .map(|(l, _, _)| self.text_width(l, 16.0) + self.u(22.0))
             .collect();
         let total: f32 = widths.iter().sum::<f32>() + self.u(8.0) * (buttons.len() as f32 - 1.0);
         let mut bx = (screen_width() - self.u(14.0) - total).max(x + self.u(10.0));
@@ -1073,7 +1096,7 @@ impl Ui {
                 action.clone(),
                 true,
                 *style,
-                14.0,
+                16.0,
             );
             bx += *w + self.u(8.0);
         }
@@ -1256,12 +1279,12 @@ impl Ui {
             "Unknown".to_string()
         };
         let col = if explored { TEXT } else { MUTED };
-        let lw = self.text_width(&label, 13.0);
+        let lw = self.text_width(&label, 15.0);
         self.text(
             &label,
             p.x - lw / 2.0,
             p.y + r + self.u(15.0) * zoom_f + 2.0,
-            13.0,
+            15.0,
             col,
         );
 
@@ -1330,7 +1353,7 @@ impl Ui {
         );
 
         let cnt = format!("{}", f.ships.len());
-        self.text(&cnt, p.x + fs + 2.0, p.y - fs, 13.0, c(235, 242, 255));
+        self.text(&cnt, p.x + fs + 2.0, p.y - fs, 15.0, c(235, 242, 255));
 
         let hit_r = self.u(18.0);
         let hit = rect(p.x - hit_r, p.y - hit_r, hit_r * 2.0, hit_r * 2.0);
@@ -1373,7 +1396,7 @@ impl Ui {
             "GALAXY",
             side.x + self.u(20.0),
             y + self.u(9.0),
-            13.0,
+            15.0,
             ACCENT2,
         );
         draw_rectangle(
@@ -1403,7 +1426,7 @@ impl Ui {
             "EVENT LOG",
             side.x + self.u(20.0),
             y + self.u(9.0),
-            13.0,
+            15.0,
             MAGENTA,
         );
         draw_rectangle(
@@ -1436,7 +1459,7 @@ impl Ui {
                 _ => TEXT,
             };
             let tag = format!("[{}]", entry.turn);
-            for (j, line) in self.wrap(&entry.msg, 12.0, avail_w).iter().enumerate() {
+            for (j, line) in self.wrap(&entry.msg, 13.0, avail_w).iter().enumerate() {
                 display.push((
                     if j == 0 { tag.clone() } else { String::new() },
                     line.clone(),
@@ -1456,7 +1479,7 @@ impl Ui {
                         tag,
                         log_rect.x + 2.0,
                         log_rect.y + yy + self.u(10.0),
-                        12.0,
+                        13.0,
                         c(84, 98, 138),
                     );
                 }
@@ -1464,7 +1487,7 @@ impl Ui {
                     line,
                     log_rect.x + self.u(40.0),
                     log_rect.y + yy + self.u(10.0),
-                    12.0,
+                    13.0,
                     *col,
                 );
             }
@@ -1555,8 +1578,8 @@ impl Ui {
 
     fn panel_overview(&mut self, st: &State, x: f32, y: f32, _w: f32) {
         let p = st.player();
-        self.text(&p.name, x, y + self.u(12.0), 18.0, ACCENT);
-        self.text(&p.desc, x, y + self.u(34.0), 13.0, MUTED);
+        self.text(&p.name, x, y + self.u(12.0), 20.0, ACCENT);
+        self.text(&p.desc, x, y + self.u(34.0), 15.0, MUTED);
         let stats: Vec<(&str, String)> = vec![
             ("Colonies", format!("{}", st.empire_colonies(0).len())),
             (
@@ -1581,8 +1604,8 @@ impl Ui {
         let mut sx = x;
         let sy = y + self.u(56.0);
         for (label, val) in stats {
-            self.text(label, sx, sy + self.u(10.0), 12.0, MUTED);
-            self.text(&val, sx, sy + self.u(23.0), 14.0, TEXT);
+            self.text(label, sx, sy + self.u(10.0), 13.0, MUTED);
+            self.text(&val, sx, sy + self.u(23.0), 16.0, TEXT);
             sx += 150.0;
         }
         self.hint(
@@ -1598,10 +1621,10 @@ impl Ui {
         let star_name = data::star_by_key(&s.star_class)
             .map(|s| s.name)
             .unwrap_or("");
-        self.text(&s.name, x, y + self.u(12.0), 18.0, ACCENT);
+        self.text(&s.name, x, y + self.u(12.0), 20.0, ACCENT);
 
         if !explored {
-            self.text("Unexplored system", x, y + self.u(34.0), 13.0, MUTED);
+            self.text("Unexplored system", x, y + self.u(34.0), 15.0, MUTED);
             self.hint(
                 "Send a fleet within sensor range to reveal this system's planets and owner.",
                 x,
@@ -1617,7 +1640,7 @@ impl Ui {
             &format!("{} | {} world", star_name, pt.map(|p| p.name).unwrap_or("")),
             x,
             y + self.u(34.0),
-            13.0,
+            15.0,
             MUTED,
         );
 
@@ -1643,8 +1666,8 @@ impl Ui {
         let mut sx = x;
         let sy = y + self.u(54.0);
         for (label, val, col) in stats {
-            self.text(label, sx, sy + self.u(10.0), 12.0, MUTED);
-            self.text(&val, sx, sy + self.u(23.0), 14.0, col);
+            self.text(label, sx, sy + self.u(10.0), 13.0, MUTED);
+            self.text(&val, sx, sy + self.u(23.0), 16.0, col);
             sx += 140.0;
         }
 
@@ -1654,7 +1677,7 @@ impl Ui {
                 &format!("Anomaly - {}: {}", a.name, a.desc),
                 x,
                 ly + self.u(11.0),
-                13.0,
+                15.0,
                 GOLD,
             );
             ly += 18.0;
@@ -1669,7 +1692,7 @@ impl Ui {
                     &format!("COLONY - {}", c.name),
                     x,
                     ly + self.u(11.0),
-                    13.0,
+                    15.0,
                     MUTED,
                 );
                 self.text(
@@ -1680,7 +1703,7 @@ impl Ui {
                     ),
                     x + self.u(230.0),
                     ly + self.u(11.0),
-                    13.0,
+                    15.0,
                     TEXT,
                 );
                 self.text(
@@ -1690,23 +1713,23 @@ impl Ui {
                     ),
                     x + self.u(400.0),
                     ly + self.u(11.0),
-                    13.0,
+                    15.0,
                     TEXT,
                 );
                 ly += 20.0;
                 let mut bx = x;
                 for b in &col.buildings {
                     let label = data::building(b).map(|x| x.name).unwrap_or(b);
-                    let bw = self.text_width(label, 13.0) + self.u(14.0);
+                    let bw = self.text_width(label, 15.0) + self.u(14.0);
                     let r = rect(bx, ly, bw, 20.0);
                     draw_rectangle(r.x, r.y, r.w, r.h, PANEL2);
                     draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.0, BORDER);
-                    self.text(label, bx + self.u(7.0), ly + self.u(14.0), 13.0, TEXT);
+                    self.text(label, bx + self.u(7.0), ly + self.u(14.0), 15.0, TEXT);
                     bx += bw + self.u(5.0);
                 }
                 ly += 26.0;
                 if !col.queue.is_empty() {
-                    self.text("Construction", x, ly + self.u(11.0), 13.0, MUTED);
+                    self.text("Construction", x, ly + self.u(11.0), 15.0, MUTED);
                     ly += 15.0;
                     for (i, key) in col.queue.iter().enumerate() {
                         let ship = engine::ship_def(st, key);
@@ -1727,7 +1750,7 @@ impl Ui {
                             &format!("{}{}", name, prog),
                             x,
                             ly + self.u(11.0),
-                            13.0,
+                            15.0,
                             if i == 0 { GOLD } else { MUTED },
                         );
                         ly += 14.0;
@@ -1771,7 +1794,7 @@ impl Ui {
             }
             let bx0 = x + self.u(760.0);
             let mut by = y + self.u(54.0);
-            self.text("BUILDINGS", bx0, by + self.u(10.0), 13.0, MUTED);
+            self.text("BUILDINGS", bx0, by + self.u(10.0), 15.0, MUTED);
             by += 17.0;
             let mut bx = bx0;
             for b in data::buildings() {
@@ -1782,7 +1805,7 @@ impl Ui {
                     continue;
                 }
                 let label = format!("{} {}min", b.name, b.cost);
-                let bw = self.text_width(&label, 13.0) + self.u(14.0);
+                let bw = self.text_width(&label, 15.0) + self.u(14.0);
                 let enabled = c.minerals >= b.cost as f32;
                 self.button(
                     rect(bx, by, bw, 22.0),
@@ -1790,20 +1813,20 @@ impl Ui {
                     Action::BuildBuilding(b.key.to_string()),
                     enabled,
                     Style::Small,
-                    13.0,
+                    15.0,
                 );
                 bx += bw + self.u(5.0);
             }
             by += 28.0;
             if col.buildings.iter().any(|b| b == "shipyard") {
-                self.text("SHIPS", bx0, by + self.u(10.0), 13.0, MUTED);
+                self.text("SHIPS", bx0, by + self.u(10.0), 15.0, MUTED);
                 self.button(
                     rect(bx0 + self.u(78.0), by - self.u(3.0), self.u(118.0), 18.0),
                     "+ Design a Ship",
                     Action::OpenDesigner,
                     true,
                     Style::Small,
-                    12.0,
+                    13.0,
                 );
                 by += 17.0;
                 let mut bx = bx0;
@@ -1837,7 +1860,7 @@ impl Ui {
                         "{}{} {}cr {}min {}t",
                         tag, name, credits, minerals, ship.build_turns
                     );
-                    let bw = self.text_width(&label, 13.0) + self.u(14.0);
+                    let bw = self.text_width(&label, 15.0) + self.u(14.0);
                     let enabled = c.credits >= credits as f32 && c.minerals >= minerals as f32;
                     self.button(
                         rect(bx, by, bw, 22.0),
@@ -1845,7 +1868,7 @@ impl Ui {
                         Action::QueueShip(key),
                         enabled,
                         Style::Small,
-                        13.0,
+                        15.0,
                     );
                     bx += bw + self.u(5.0);
                 }
@@ -1863,7 +1886,7 @@ impl Ui {
             &format!("Fleet - {}", e.name),
             x,
             y + self.u(12.0),
-            18.0,
+            20.0,
             ACCENT,
         );
         let mut sub = format!(
@@ -1885,13 +1908,13 @@ impl Ui {
             engine::fleet_speed(st, f) as i32,
             engine::fleet_strength(st, f).round() as i32
         ));
-        self.text(&sub, x, y + self.u(34.0), 13.0, MUTED);
+        self.text(&sub, x, y + self.u(34.0), 15.0, MUTED);
 
         self.text(
             &format!("Ships ({})", f.ships.len()),
             x,
             y + self.u(54.0),
-            13.0,
+            15.0,
             MUTED,
         );
         let mut bx = x;
@@ -1899,11 +1922,11 @@ impl Ui {
         for ship in &f.ships {
             let stt = engine::effective_ship_stats(st, &e, &ship.cls);
             let label = stt.name.clone();
-            let bw = self.text_width(&label, 13.0) + self.u(14.0) + 60.0;
+            let bw = self.text_width(&label, 15.0) + self.u(14.0) + 60.0;
             let r = rect(bx, by, bw, 20.0);
             draw_rectangle(r.x, r.y, r.w, r.h, PANEL2);
             draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.0, BORDER);
-            self.text(&label, bx + self.u(7.0), by + self.u(14.0), 13.0, TEXT);
+            self.text(&label, bx + self.u(7.0), by + self.u(14.0), 15.0, TEXT);
             let pct = ((100.0 * ship.hp / stt.hp).clamp(0.0, 100.0)) as i32;
             draw_rectangle(
                 bx + bw - self.u(58.0),
@@ -1960,7 +1983,7 @@ impl Ui {
             Action::SplitFleet,
             f.ships.len() >= 2,
             Style::Small,
-            14.0,
+            16.0,
         );
         self.button(
             rect(x + self.u(102.0), by, self.u(60.0), 24.0),
@@ -1968,7 +1991,7 @@ impl Ui {
             Action::StopFleet,
             f.moves.is_some(),
             Style::Small,
-            14.0,
+            16.0,
         );
         if !others.is_empty() {
             self.button(
@@ -1977,7 +2000,7 @@ impl Ui {
                 Action::MergeAll(f.id),
                 true,
                 Style::Small,
-                14.0,
+                16.0,
             );
         }
         self.hint(
@@ -1988,7 +2011,7 @@ impl Ui {
         );
         by += 32.0;
         if !others.is_empty() {
-            self.text("Other fleets here", x, by + self.u(10.0), 13.0, MUTED);
+            self.text("Other fleets here", x, by + self.u(10.0), 15.0, MUTED);
             by += 16.0;
             for o in &others {
                 let names: Vec<String> = o
@@ -2000,14 +2023,14 @@ impl Ui {
                             .unwrap_or_default()
                     })
                     .collect();
-                self.text(&names.join(", "), x, by + self.u(11.0), 13.0, TEXT);
+                self.text(&names.join(", "), x, by + self.u(11.0), 15.0, TEXT);
                 self.button(
                     rect(x + self.u(260.0), by - self.u(2.0), self.u(60.0), 20.0),
                     "Merge",
                     Action::MergeInto(f.id, o.id),
                     true,
                     Style::Small,
-                    13.0,
+                    15.0,
                 );
                 by += 20.0;
             }
@@ -2047,7 +2070,7 @@ impl Ui {
             Action::CloseModal,
             true,
             Style::Small,
-            14.0,
+            16.0,
         );
     }
 
@@ -2089,13 +2112,13 @@ impl Ui {
             "Stellar Dominion",
             box_r.x + self.u(20.0),
             box_r.y + self.u(30.0),
-            18.0,
+            20.0,
             ACCENT,
         );
         let body = "A turn-based 4X space strategy game. Explore, expand, exploit and exterminate across a procedurally generated galaxy.";
         let mut yy = box_r.y + self.u(58.0);
-        for line in self.wrap(body, 14.0, box_r.w - self.u(40.0)) {
-            self.text(&line, box_r.x + self.u(20.0), yy, 14.0, TEXT);
+        for line in self.wrap(body, 16.0, box_r.w - self.u(40.0)) {
+            self.text(&line, box_r.x + self.u(20.0), yy, 16.0, TEXT);
             yy += 16.0;
         }
         yy += 10.0;
@@ -2104,7 +2127,7 @@ impl Ui {
             "Empire name",
             box_r.x + self.u(20.0),
             yy + self.u(11.0),
-            13.0,
+            15.0,
             MUTED,
         );
         yy += 18.0;
@@ -2122,7 +2145,7 @@ impl Ui {
             &self.name_input,
             r.x + self.u(8.0),
             r.y + self.u(18.0),
-            14.0,
+            16.0,
             TEXT,
         );
         self.clickables.push(Clickable {
@@ -2149,7 +2172,7 @@ impl Ui {
                 label,
                 box_r.x + self.u(20.0),
                 yy + self.u(11.0),
-                13.0,
+                15.0,
                 MUTED,
             );
             self.button(
@@ -2163,7 +2186,7 @@ impl Ui {
                 act,
                 true,
                 Style::Small,
-                14.0,
+                16.0,
             );
             yy += 30.0;
         }
@@ -2180,7 +2203,7 @@ impl Ui {
                 Action::LoadSave,
                 true,
                 Style::Small,
-                14.0,
+                16.0,
             );
         }
         self.button(
@@ -2194,7 +2217,7 @@ impl Ui {
             Action::StartNewGame,
             true,
             Style::Primary,
-            14.0,
+            16.0,
         );
     }
 
@@ -2204,7 +2227,7 @@ impl Ui {
             "Research",
             box_r.x + self.u(20.0),
             box_r.y + self.u(30.0),
-            18.0,
+            20.0,
             ACCENT,
         );
         let mut intro = "Research points accumulate each turn from your colonies.".to_string();
@@ -2218,7 +2241,7 @@ impl Ui {
             &intro,
             box_r.x + self.u(20.0),
             box_r.y + self.u(54.0),
-            13.0,
+            15.0,
             MUTED,
         );
 
@@ -2229,7 +2252,7 @@ impl Ui {
                 &cat.to_uppercase(),
                 box_r.x + self.u(20.0),
                 y + self.u(10.0),
-                13.0,
+                15.0,
                 MUTED,
             );
             y += 18.0;
@@ -2249,7 +2272,7 @@ impl Ui {
                 } else {
                     TEXT
                 };
-                self.text(t.name, box_r.x + self.u(28.0), y + self.u(12.0), 14.0, col);
+                self.text(t.name, box_r.x + self.u(28.0), y + self.u(12.0), 16.0, col);
                 let mut desc = t.desc.to_string();
                 if !t.requires.is_empty() && !locked {
                     let names: Vec<&str> = t
@@ -2264,7 +2287,7 @@ impl Ui {
                     &desc,
                     box_r.x + self.u(230.0),
                     y + self.u(13.0),
-                    12.0,
+                    13.0,
                     MUTED,
                 );
                 let status = if done {
@@ -2280,7 +2303,7 @@ impl Ui {
                     &status,
                     box_r.x + self.u(470.0),
                     y + self.u(12.0),
-                    13.0,
+                    15.0,
                     col,
                 );
                 if !done && !current && !locked {
@@ -2295,7 +2318,7 @@ impl Ui {
                         Action::SetTech(t.key.to_string()),
                         true,
                         Style::Small,
-                        13.0,
+                        15.0,
                     );
                 }
                 if current {
@@ -2319,7 +2342,7 @@ impl Ui {
                         &format!("{} / {}", p.tech_progress as i32, t.cost),
                         box_r.x + self.u(678.0),
                         y + self.u(24.0),
-                        12.0,
+                        13.0,
                         MUTED,
                     );
                 }
@@ -2336,14 +2359,14 @@ impl Ui {
             "Diplomacy",
             box_r.x + self.u(20.0),
             box_r.y + self.u(30.0),
-            18.0,
+            20.0,
             ACCENT,
         );
         self.text(
             "Relations with the other empires of the galaxy.",
             box_r.x + self.u(20.0),
             box_r.y + self.u(54.0),
-            13.0,
+            15.0,
             MUTED,
         );
         let p = st.player().clone();
@@ -2360,14 +2383,14 @@ impl Ui {
                 &e.name,
                 box_r.x + self.u(20.0),
                 y + self.u(12.0),
-                14.0,
+                16.0,
                 rgb(&e.color),
             );
             self.text(
                 if at_war { "AT WAR" } else { "PEACE" },
                 box_r.x + self.u(200.0),
                 y + self.u(12.0),
-                13.0,
+                15.0,
                 if at_war { WAR } else { GOOD },
             );
             self.text(
@@ -2380,7 +2403,7 @@ impl Ui {
                 ),
                 box_r.x + self.u(20.0),
                 y + self.u(29.0),
-                12.0,
+                13.0,
                 MUTED,
             );
             if offered {
@@ -2388,7 +2411,7 @@ impl Ui {
                     "Peace offer received.",
                     box_r.x + self.u(20.0),
                     y + self.u(43.0),
-                    12.0,
+                    13.0,
                     GOOD,
                 );
             }
@@ -2418,7 +2441,7 @@ impl Ui {
                 act,
                 true,
                 style,
-                13.0,
+                15.0,
             );
             y = by + self.u(8.0);
         }
@@ -2431,14 +2454,14 @@ impl Ui {
             "Battle Reports",
             box_r.x + self.u(20.0),
             box_r.y + self.u(30.0),
-            18.0,
+            20.0,
             ACCENT,
         );
         self.text(
             "Recent engagements across the galaxy, newest first.",
             box_r.x + self.u(20.0),
             box_r.y + self.u(54.0),
-            13.0,
+            15.0,
             MUTED,
         );
         let mut y = box_r.y + self.u(78.0);
@@ -2460,7 +2483,7 @@ impl Ui {
                 &b.system,
                 box_r.x + self.u(20.0),
                 y + self.u(12.0),
-                14.0,
+                16.0,
                 TEXT,
             );
             self.text(
@@ -2471,21 +2494,21 @@ impl Ui {
                 },
                 box_r.x + self.u(180.0),
                 y + self.u(13.0),
-                12.0,
+                13.0,
                 if b.kind == "colony" { WAR } else { MUTED },
             );
             self.text(
                 &format!("Turn {}", b.turn),
                 right(box_r) - self.u(90.0),
                 y + self.u(12.0),
-                12.0,
+                13.0,
                 RESEARCH,
             );
             self.text(
                 &b.participants.join(" vs "),
                 box_r.x + self.u(20.0),
                 y + self.u(27.0),
-                13.0,
+                15.0,
                 MUTED,
             );
             self.text(
@@ -2497,7 +2520,7 @@ impl Ui {
                 ),
                 box_r.x + self.u(20.0),
                 y + self.u(42.0),
-                12.0,
+                13.0,
                 TEXT,
             );
             y += 52.0;
@@ -2511,7 +2534,7 @@ impl Ui {
             "How to Play",
             box_r.x + self.u(20.0),
             box_r.y + self.u(30.0),
-            18.0,
+            20.0,
             ACCENT,
         );
         let mut y = box_r.y + self.u(58.0);
@@ -2548,10 +2571,10 @@ impl Ui {
         ];
         for (text, header) in lines {
             if header {
-                self.text(text, box_r.x + self.u(20.0), y + self.u(10.0), 13.0, MUTED);
+                self.text(text, box_r.x + self.u(20.0), y + self.u(10.0), 15.0, MUTED);
                 y += 18.0;
             } else if !text.is_empty() {
-                self.text(text, box_r.x + self.u(20.0), y + self.u(11.0), 13.0, TEXT);
+                self.text(text, box_r.x + self.u(20.0), y + self.u(11.0), 15.0, TEXT);
                 y += 16.0;
             } else {
                 y += 6.0;
@@ -2573,13 +2596,13 @@ impl Ui {
         tag: char,
         techs: &[String],
     ) -> f32 {
-        self.text(label, x, y + self.u(14.0), 13.0, MUTED);
+        self.text(label, x, y + self.u(14.0), 15.0, MUTED);
         let mut bx = x + self.u(66.0);
         for (key, name, desc, tech) in rows {
             let locked = tech.map(|t| !techs.iter().any(|x| x == t)).unwrap_or(false);
             let selected = *key == current;
             let text = format!("{}{}", name, if locked { " *" } else { "" });
-            let bw = self.text_width(&text, 13.0) + self.u(14.0);
+            let bw = self.text_width(&text, 15.0) + self.u(14.0);
             let r = rect(bx, y, bw, 22.0);
             draw_rectangle(
                 r.x,
@@ -2600,7 +2623,7 @@ impl Ui {
                 &text,
                 bx + self.u(7.0),
                 y + self.u(15.0),
-                13.0,
+                15.0,
                 if locked { c(90, 100, 125) } else { TEXT },
             );
             if !locked {
@@ -2616,7 +2639,7 @@ impl Ui {
             let _ = desc;
         }
         let sel = rows.iter().find(|r| r.0 == current).unwrap_or(&rows[0]);
-        self.text(sel.2, x + self.u(66.0), y + self.u(37.0), 12.0, MUTED);
+        self.text(sel.2, x + self.u(66.0), y + self.u(37.0), 13.0, MUTED);
         y + self.u(54.0)
     }
 
@@ -2626,14 +2649,14 @@ impl Ui {
             "Ship Designer",
             box_r.x + self.u(20.0),
             box_r.y + self.u(30.0),
-            18.0,
+            20.0,
             ACCENT,
         );
         self.text(
             "Combine a hull with weapon, armour and engine modules.",
             box_r.x + self.u(20.0),
             box_r.y + self.u(54.0),
-            13.0,
+            15.0,
             MUTED,
         );
 
@@ -2645,7 +2668,7 @@ impl Ui {
             "Design name",
             box_r.x + self.u(20.0),
             y + self.u(15.0),
-            13.0,
+            15.0,
             MUTED,
         );
         let r = rect(
@@ -2668,7 +2691,7 @@ impl Ui {
                 "Custom Design",
                 r.x + self.u(8.0),
                 r.y + self.u(17.0),
-                14.0,
+                16.0,
                 MUTED,
             );
         } else {
@@ -2676,7 +2699,7 @@ impl Ui {
                 &self.d_name,
                 r.x + self.u(8.0),
                 r.y + self.u(17.0),
-                14.0,
+                16.0,
                 TEXT,
             );
         }
@@ -2770,7 +2793,7 @@ impl Ui {
             ),
             box_r.x + self.u(30.0),
             py + self.u(16.0),
-            14.0,
+            16.0,
             TEXT,
         );
         let mut req: Vec<String> = Vec::new();
@@ -2797,7 +2820,7 @@ impl Ui {
             },
             box_r.x + self.u(30.0),
             py + self.u(34.0),
-            12.0,
+            13.0,
             if req.is_empty() { GOOD } else { WAR },
         );
         if !req.is_empty() {
@@ -2805,7 +2828,7 @@ impl Ui {
                 &req.join(", "),
                 box_r.x + self.u(30.0) + self.text_width("Requires: ", 12.0),
                 py + self.u(34.0),
-                12.0,
+                13.0,
                 WAR,
             );
         }
@@ -2815,7 +2838,7 @@ impl Ui {
             "YOUR DESIGNS",
             box_r.x + self.u(20.0),
             dy + self.u(10.0),
-            13.0,
+            15.0,
             MUTED,
         );
         dy += 16.0;
@@ -2842,14 +2865,14 @@ impl Ui {
                 &dname,
                 box_r.x + self.u(20.0),
                 dy + self.u(11.0),
-                13.0,
+                15.0,
                 TEXT,
             );
             self.text(
                 &ddesc,
                 box_r.x + self.u(200.0),
                 dy + self.u(12.0),
-                12.0,
+                13.0,
                 MUTED,
             );
             self.button(
@@ -2863,7 +2886,7 @@ impl Ui {
                 Action::DeleteDesign(key.clone()),
                 true,
                 Style::Danger,
-                12.0,
+                13.0,
             );
             dy += 22.0;
         }
@@ -2879,7 +2902,7 @@ impl Ui {
             Action::SaveDesign,
             true,
             Style::Primary,
-            14.0,
+            16.0,
         );
         self.close_button(box_r);
     }
@@ -2901,7 +2924,7 @@ impl Ui {
             title,
             box_r.x + self.u(20.0),
             box_r.y + self.u(40.0),
-            18.0,
+            20.0,
             if won { GOOD } else { BAD },
         );
         let msg = if won {
@@ -2912,15 +2935,15 @@ impl Ui {
             "Your empire has been wiped out.".to_string()
         };
         let mut yy = box_r.y + self.u(70.0);
-        for line in self.wrap(&msg, 14.0, box_r.w - self.u(40.0)) {
-            self.text(&line, box_r.x + self.u(20.0), yy, 14.0, TEXT);
+        for line in self.wrap(&msg, 16.0, box_r.w - self.u(40.0)) {
+            self.text(&line, box_r.x + self.u(20.0), yy, 16.0, TEXT);
             yy += 16.0;
         }
         self.text(
             &format!("Turns played: {}", turns),
             box_r.x + self.u(20.0),
             yy + self.u(20.0),
-            13.0,
+            15.0,
             MUTED,
         );
         self.button(
@@ -2934,7 +2957,7 @@ impl Ui {
             Action::OpenNew,
             true,
             Style::Primary,
-            14.0,
+            16.0,
         );
     }
 }

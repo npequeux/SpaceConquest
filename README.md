@@ -34,6 +34,17 @@ window (reference design 1024x640) and renders at the monitor's native resolutio
 (`high_dpi`), so text stays sharp on high-DPI displays instead of being upscaled
 by the window system.
 
+Everything is drawn in *logical* pixels: macroquad's default projection maps
+`screen_size / dpi`, and `macroquad::window::screen_width()` returns the same
+logical width. Font sizes passed to `draw_text` are logical too, so a design
+size multiplied by the UI scale is what you get on screen. Do not divide by
+`screen_dpi_scale()` in that path — it shrinks the text by the DPI factor.
+
+The interface uses the bundled Inter face (`rust/assets/Inter.ttf`, SIL Open
+Font License 1.1) instead of macroquad's ProggyClean pixel font, which turns to
+mush above ~14px. It is rasterised with nearest-neighbour filtering and every
+label gets a 1px shadow so it stays readable over the starfield.
+
 ### Project layout
 
 ```

@@ -1,0 +1,15 @@
+Inter
+=====
+
+The interface font bundled at rust/assets/Inter.ttf is Inter, copyright
+Rasmus Andersson and contributors.
+
+License: SIL Open Font License 1.1
+https://openfontlicense.org/open-font-license-official-text/
+
+Source: https://github.com/rsms/inter
+(The file shipped here is the variable font from google/fonts:
+ https://github.com/google/fonts/tree/main/ofl/inter)
+
+Inter is a variable font; macroquad rasterises it at its default instance
+(Regular). Reserved font name: "Inter".
