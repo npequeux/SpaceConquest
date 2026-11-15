@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WiX v3 source for the Windows installer.
+  Built by install/package.sh, which passes:
+    -dVersion   the crate version (e.g. 3.0.0)
+    -dSource    the staging directory holding the files to bundle
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="Stellar Dominion"
+           Language="1033"
+           Version="$(var.Version)"
+           Manufacturer="npequeux"
+           UpgradeCode="A1C4E7D2-5B63-4F8E-9C21-7E0D4B8A6F35">
+
+    <Package InstallerVersion="200"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Description="Stellar Dominion $(var.Version)"
+             Comments="A turn-based 4X space strategy game." />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Stellar Dominion is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="Stellar Dominion" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder" />
+    </Directory>
+
+    <Feature Id="MainFeature" Title="Stellar Dominion" Level="1">
+      <Component Id="ExeComponent" Directory="INSTALLFOLDER" Guid="*">
+        <File Id="ExeFile"
+              Source="$(var.Source)\Stellar Dominion.exe"
+              KeyPath="yes" />
+      </Component>
+      <Component Id="ReadmeComponent" Directory="INSTALLFOLDER" Guid="*">
+        <File Id="ReadmeFile" Source="$(var.Source)\README.txt" KeyPath="yes" />
+      </Component>
+      <Component Id="LicenseComponent" Directory="INSTALLFOLDER" Guid="*">
+        <File Id="LicenseFile" Source="$(var.Source)\LICENSE.txt" KeyPath="yes" />
+      </Component>
+      <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder" Guid="*">
+        <Shortcut Id="StartMenuShortcut"
+                  Name="Stellar Dominion"
+                  Description="A turn-based 4X space strategy game"
+                  Target="[INSTALLFOLDER]Stellar Dominion.exe"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="RemoveProgramMenu" On="uninstall" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\npequeux\StellarDominion"
+                       Name="installed"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </Feature>
+
+    <UIRef Id="WixUI_Minimal" />
+  </Product>
+</Wix>

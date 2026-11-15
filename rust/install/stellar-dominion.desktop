@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Stellar Dominion
+GenericName=Space Strategy Game
+Comment=A turn-based 4X space strategy game
+Exec=stellar-dominion
+Icon=stellar-dominion
+Categories=Game;StrategyGame;
+Terminal=false
+StartupNotify=true

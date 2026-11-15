@@ -1,0 +1,11 @@
+Package: stellar-dominion
+Version: @VERSION@
+Section: games
+Priority: optional
+Architecture: @ARCH@
+Depends: libx11-6 | libx11-6t64, libgl1, libasound2 | libasound2t64
+Maintainer: npequeux <npequeux@users.noreply.github.com>
+Homepage: https://github.com/npequeux/SpaceConquest
+Description: Stellar Dominion - a turn-based 4X space strategy game
+ Explore, expand, exploit and exterminate across a procedurally generated
+ galaxy. Native OpenGL client written in Rust with macroquad.

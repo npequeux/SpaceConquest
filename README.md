@@ -124,7 +124,8 @@ CI (`.github/workflows/ci.yml`) runs on every push and pull request:
 | --- | --- | --- |
 | `rust` | ubuntu | clippy (headless), build, test |
 | `ui` | windows | clippy (macroquad frontend), build |
-| `release` | windows | `cargo build --release`, upload the exe as a run artifact |
+| `packages` | windows + ubuntu + macOS x2 | `cargo build --release --target …`, then `install/package.sh` |
+| `publish` | ubuntu | attaches the packages to GitHub releases |
 | `pages` | ubuntu | `cargo build --release --target wasm32-unknown-unknown`, deploy to Pages |
 
 Every push to `main` also moves the prerelease GitHub release
@@ -133,4 +134,26 @@ new build, and redeploys the browser version to
 <https://npequeux.github.io/SpaceConquest/>. Pushing a tag
 (`git tag v3.0.0 && git push origin v3.0.0`) creates a separate, non-moving
 release for that version.
+
+### Install packages
+
+`install/package.sh` builds one package set per platform; CI runs it on all of
+them and publishes the result.
+
+| Platform | Artefacts |
+| --- | --- |
+| Windows x64 | `.msi` installer (WiX), portable `.zip`, raw `.exe` |
+| Linux x64 | `.tar.gz`, Debian/Ubuntu `.deb` |
+| macOS arm64 / x64 | `.zip` with a `StellarDominion.app` bundle, `.dmg` |
+
+```bash
+cd rust
+cargo build --release --target x86_64-unknown-linux-gnu
+./install/package.sh linux-x64 x86_64-unknown-linux-gnu linux
+```
+
+Linux needs `libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev
+libgl1-mesa-dev libasound2-dev` at build time and X11 + ALSA at runtime. The
+Windows MSI is only produced when a WiX v3 toolchain is on `PATH`
+(`WIX_DIR` overrides the lookup).
 
