@@ -49,7 +49,23 @@ const WHITE: Color = Color::from_rgba(255, 255, 255, 255);
 const BLACK: Color = Color::from_rgba(4, 6, 12, 255);
 const SHADOW: Color = Color::from_rgba(2, 3, 7, 200);
 
-const TOP_H: f32 = 52.0;
+/// Top bar is two bands: a title/resource strip, then the action buttons
+/// packed into as many rows as the window width requires. A single row of
+/// eight buttons is wider than the window at 125% DPI, so the row count has
+/// to be computed rather than assumed.
+const TOP_INFO_H: f32 = 26.0;
+const TOP_BTN_H: f32 = 32.0;
+const TOP_ROW_GAP: f32 = 6.0;
+const TOP_BUTTONS: [&str; 8] = [
+    "Research",
+    "Diplomacy",
+    "Battles",
+    "Home",
+    "Save",
+    "New Game",
+    "Help",
+    "End Turn",
+];
 const SIDEBAR_W: f32 = 280.0;
 const PANEL_H: f32 = 232.0;
 const MINIMAP_W: f32 = 256.0;
@@ -179,6 +195,14 @@ struct Nebula {
     color: Color,
 }
 
+/// A battle cinematic queued by the turn that produced it. Purely a frontend
+/// concern: the simulation just records the battle, the UI decides to play it.
+struct Cinematic {
+    rec: crate::state::BattleRec,
+    t0: f64,
+    seed: u64,
+}
+
 pub struct Ui {
     cam_x: f32,
     cam_y: f32,
@@ -210,6 +234,8 @@ pub struct Ui {
     d_engine: String,
     d_name: String,
     d_name_focus: bool,
+    /// Battle cinematic currently playing, if any. While set it owns the input.
+    cinematic: Option<Cinematic>,
 }
 
 fn rect(x: f32, y: f32, w: f32, h: f32) -> Rect {
@@ -280,6 +306,7 @@ impl Ui {
             d_engine: data::engine_modules()[0].key.to_string(),
             d_name: String::new(),
             d_name_focus: false,
+            cinematic: None,
         }
     }
 
@@ -338,11 +365,41 @@ impl Ui {
         .width
     }
 
+    /// Height of the top bar: the title/resource strip plus one row of action
+    /// buttons per wrap.
+    fn top_h(&self) -> f32 {
+        let rows = self.top_rows();
+        (TOP_INFO_H
+            + TOP_ROW_GAP
+            + rows as f32 * TOP_BTN_H
+            + (rows as f32 - 1.0).max(0.0) * TOP_ROW_GAP)
+            * self.scale
+    }
+
+    /// How many rows the eight action buttons need at the current width.
+    fn top_rows(&self) -> usize {
+        let avail = (screen_width() - self.u(28.0)).max(self.u(120.0));
+        let gap = self.u(8.0);
+        let mut rows = 1usize;
+        let mut used = 0.0f32;
+        for l in TOP_BUTTONS {
+            let w = self.text_width(l, 16.0) + self.u(22.0);
+            let extra = if used == 0.0 { w } else { gap + w };
+            if used > 0.0 && used + extra > avail {
+                rows += 1;
+                used = w;
+            } else {
+                used += extra;
+            }
+        }
+        rows
+    }
+
     fn layout(&self) -> (Rect, Rect, Rect, Rect) {
         let w = screen_width();
         let h = screen_height();
         let s = self.scale;
-        let top_h = TOP_H * s;
+        let top_h = self.top_h();
         let side_w = SIDEBAR_W * s;
         let panel_h = PANEL_H * s;
         let map = rect(
@@ -498,12 +555,151 @@ impl Ui {
         self.text(s, x, y, 15.0, color);
     }
 
+    /// Accent colour for a hull class, so the classes read apart at a glance.
+    fn hull_tint(key: &str) -> Color {
+        match key {
+            "frigate" => c(120, 220, 255),
+            "destroyer" => c(130, 235, 170),
+            "cruiser" => AMBER,
+            "battleship" => MAGENTA,
+            _ => ACCENT,
+        }
+    }
+
+    /// Hull key for a ship class key (a stock key, or `custom:<empire>:<index>`).
+    fn hull_of(&self, cls: &str, st: &State) -> String {
+        if let Some(rest) = cls.strip_prefix("custom:") {
+            let parts: Vec<&str> = rest.split(':').collect();
+            if parts.len() == 2 {
+                if let Ok(i) = parts[1].parse::<usize>() {
+                    if let Some(d) = st.designs.get(parts[0]).and_then(|v| v.get(i)) {
+                        return d.hull.clone();
+                    }
+                }
+            }
+        }
+        if data::hull(cls).is_some() {
+            return cls.to_string();
+        }
+        "frigate".to_string()
+    }
+
+    /// Ship silhouette for a hull class. `size` is the hull length in pixels and
+    /// `angle` is the direction the nose points, so the same shape serves the
+    /// map, the designer preview and the battle cinematic.
+    #[allow(clippy::too_many_arguments)]
+    fn draw_ship(
+        &self,
+        hull: &str,
+        x: f32,
+        y: f32,
+        size: f32,
+        body: Color,
+        trim: Color,
+        angle: f32,
+    ) {
+        let ca = angle.cos();
+        let sa = angle.sin();
+        let p = |lx: f32, ly: f32| {
+            vec2(
+                x + (lx * ca - ly * sa) * size,
+                y + (lx * sa + ly * ca) * size,
+            )
+        };
+        let outline: &[(f32, f32)] = match hull {
+            "frigate" => &[
+                (1.0, 0.0),
+                (-0.30, 0.20),
+                (-0.62, 0.40),
+                (-0.48, 0.0),
+                (-0.62, -0.40),
+                (-0.30, -0.20),
+            ],
+            "destroyer" => &[
+                (1.0, 0.0),
+                (0.10, 0.26),
+                (-0.30, 0.34),
+                (-0.55, 0.46),
+                (-0.72, 0.16),
+                (-0.72, -0.16),
+                (-0.55, -0.46),
+                (-0.30, -0.34),
+                (0.10, -0.26),
+            ],
+            "cruiser" => &[
+                (1.0, 0.0),
+                (0.40, 0.20),
+                (0.05, 0.26),
+                (-0.45, 0.34),
+                (-0.78, 0.44),
+                (-0.88, 0.14),
+                (-0.88, -0.14),
+                (-0.78, -0.44),
+                (-0.45, -0.34),
+                (0.05, -0.26),
+                (0.40, -0.20),
+            ],
+            _ => &[
+                (1.0, 0.0),
+                (0.62, 0.16),
+                (0.28, 0.28),
+                (-0.20, 0.40),
+                (-0.60, 0.50),
+                (-0.86, 0.44),
+                (-0.94, 0.16),
+                (-0.94, -0.16),
+                (-0.86, -0.44),
+                (-0.60, -0.50),
+                (-0.20, -0.40),
+                (0.28, -0.28),
+                (0.62, -0.16),
+            ],
+        };
+        let n = outline.len() as f32;
+        let (mut cx, mut cy) = (0.0f32, 0.0f32);
+        for (lx, ly) in outline {
+            cx += lx;
+            cy += ly;
+        }
+        let cen = p(cx / n, cy / n);
+        for i in 0..outline.len() {
+            let a = outline[i];
+            let b = outline[(i + 1) % outline.len()];
+            draw_triangle(cen, p(a.0, a.1), p(b.0, b.1), body);
+        }
+        // dorsal spine and engine glow
+        let spine_a = p(-0.55, 0.0);
+        let spine_b = p(0.45, 0.0);
+        draw_line(
+            spine_a.x,
+            spine_a.y,
+            spine_b.x,
+            spine_b.y,
+            size * 0.09,
+            trim,
+        );
+        let engine = p(-0.85, 0.0);
+        draw_circle(engine.x, engine.y, size * 0.09, trim);
+    }
+
     // ------------------------------------------------------------------
     // Input
     // ------------------------------------------------------------------
     fn handle_input(&mut self, sim: &mut Sim) {
         let mouse: Vec2 = mouse_position().into();
         let (map, side, _panel, _top) = self.layout();
+
+        // A playing cinematic owns the input: any click or key dismisses it.
+        if self.cinematic.is_some() {
+            if is_mouse_button_pressed(MouseButton::Left)
+                || is_key_pressed(KeyCode::Escape)
+                || is_key_pressed(KeyCode::Space)
+                || is_key_pressed(KeyCode::Enter)
+            {
+                self.cinematic = None;
+            }
+            return;
+        }
 
         if is_mouse_button_pressed(MouseButton::Left) {
             self.drag = Some(Drag {
@@ -791,7 +987,20 @@ impl Ui {
                 self.toast("Game saved".into());
             }
             Action::EndTurn => {
+                // A turn that produces a battle queues the cinematic; the
+                // report itself is still recorded by the simulation.
+                let before = sim.state().map(|s| s.battles.len()).unwrap_or(0);
                 sim.end_turn();
+                let after = sim.state().map(|s| s.battles.len()).unwrap_or(0);
+                if after > before {
+                    if let Some(rec) = sim.state().and_then(|s| s.battles.last().cloned()) {
+                        self.cinematic = Some(Cinematic {
+                            rec,
+                            t0: get_time(),
+                            seed: get_time().to_bits() ^ 0x9E37_79B9_7F4A_7C15,
+                        });
+                    }
+                }
             }
             Action::FocusName => self.name_focus = true,
             Action::StartNewGame => self.start_new_game(sim),
@@ -942,6 +1151,10 @@ impl Ui {
         if self.modal.is_none() && st.is_some() {
             self.draw_map_hint(map);
         }
+
+        if self.cinematic.is_some() {
+            self.draw_cinematic(st);
+        }
     }
 
     fn draw_toast(&mut self) {
@@ -973,6 +1186,307 @@ impl Ui {
                 16.0,
                 TEXT,
             );
+        }
+    }
+
+    /// Battle cinematic. Plays once after a turn that produced a battle and
+    /// dismisses itself on a click, a key, or after a few seconds.
+    fn draw_cinematic(&mut self, st: Option<&State>) {
+        let (rec, t0, seed) = match &self.cinematic {
+            Some(c) => (c.rec.clone(), c.t0, c.seed),
+            None => return,
+        };
+        let t = (get_time() - t0) as f32;
+        if t > 7.0 {
+            self.cinematic = None;
+            return;
+        }
+
+        let w = screen_width();
+        let h = screen_height();
+        let s = self.scale;
+
+        // ---- the two sides ---------------------------------------------
+        let mut names = rec.participants.clone();
+        if names.is_empty() {
+            names = vec!["Unknown".into(), "Unknown".into()];
+        }
+        while names.len() < 2 {
+            names.push(names[0].clone());
+        }
+        names.truncate(2);
+        let mut counts: Vec<i32> = rec.ships.iter().take(2).copied().collect();
+        while counts.len() < 2 {
+            counts.push(4);
+        }
+        counts.truncate(2);
+        let mut losses: Vec<i32> = rec.losses_by.iter().take(2).copied().collect();
+        while losses.len() < 2 {
+            losses.push(0);
+        }
+        losses.truncate(2);
+
+        let side_color = |i: usize| -> Color {
+            if let Some(st) = st {
+                if let Some(e) = st.empires.iter().find(|e| e.name == names[i]) {
+                    return rgb(&e.color);
+                }
+            }
+            if i == 0 {
+                ACCENT
+            } else {
+                c(255, 120, 120)
+            }
+        };
+
+        // ---- arena -----------------------------------------------------
+        draw_rectangle(0.0, 0.0, w, h, Color::from_rgba(2, 3, 8, 205));
+        let aw = (w * 0.88).min(self.u(940.0));
+        let ah = (h * 0.74).min(self.u(430.0));
+        let ar = rect(w / 2.0 - aw / 2.0, h / 2.0 - ah / 2.0, aw, ah);
+        let acx = ar.x + ar.w / 2.0;
+        draw_rectangle(ar.x, ar.y, ar.w, ar.h, c(8, 12, 24));
+        draw_rectangle_lines(ar.x, ar.y, ar.w, ar.h, s.max(1.0), BORDER);
+
+        // starfield specks, deterministic per battle
+        let mut srand = seed;
+        for _ in 0..90 {
+            srand = srand
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let rx = (srand >> 33) as f32 / (u32::MAX as f32);
+            srand = srand
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let ry = (srand >> 33) as f32 / (u32::MAX as f32);
+            draw_circle(
+                ar.x + rx * ar.w,
+                ar.y + ry * ar.h,
+                1.0,
+                Color::from_rgba(120, 150, 200, 70),
+            );
+        }
+
+        self.text(
+            "BATTLE OF",
+            ar.x + self.u(24.0),
+            ar.y + self.u(20.0),
+            15.0,
+            MUTED,
+        );
+        self.text(
+            &rec.system,
+            ar.x + self.u(24.0),
+            ar.y + self.u(38.0),
+            20.0,
+            TEXT,
+        );
+        let kind = if rec.kind == "colony" {
+            "COLONY ASSAULT"
+        } else {
+            "SPACE BATTLE"
+        };
+        let kw = self.text_width(kind, 13.0);
+        self.text(
+            kind,
+            ar.x + ar.w - self.u(24.0) - kw,
+            ar.y + self.u(24.0),
+            13.0,
+            WAR,
+        );
+        let turn = format!("TURN {}", rec.turn);
+        let tw = self.text_width(&turn, 13.0);
+        self.text(
+            &turn,
+            ar.x + ar.w - self.u(24.0) - tw,
+            ar.y + self.u(42.0),
+            13.0,
+            MUTED,
+        );
+
+        // ---- fleets ----------------------------------------------------
+        let shown = |n: i32| n.clamp(1, 6) as usize;
+        let n0 = shown(counts[0]);
+        let n1 = shown(counts[1]);
+        let sz = (aw * 0.26 / (n0.max(n1) as f32))
+            .min(self.u(26.0))
+            .max(self.u(12.0));
+        let cy = ar.y + ar.h * 0.48;
+        let pos = |side: usize, slot: usize| -> Vec2 {
+            let n = if side == 0 { n0 } else { n1 };
+            let cx = ar.x + aw * if side == 0 { 0.27 } else { 0.73 };
+            let total = n as f32 * sz * 1.18;
+            vec2(cx - total / 2.0 + sz * 0.59 + slot as f32 * sz * 1.18, cy)
+        };
+
+        // volley timeline: volley k is fired by side k%2 at side 1-k%2
+        let mut kills_by_side: [Vec<usize>; 2] = [Vec::new(), Vec::new()];
+        for side in 0..2 {
+            let n = if side == 0 { n0 } else { n1 };
+            let l = (losses[side].max(0) as usize).min(n);
+            kills_by_side[side] = (0..l).collect();
+        }
+        let total_kills: usize = kills_by_side[0].len() + kills_by_side[1].len();
+        let n_volleys = total_kills.max(6);
+        let mut volleys: Vec<(usize, usize, usize, bool)> = Vec::new();
+        let mut ki = [0usize, 0];
+        while volleys.len() < n_volleys {
+            let shooter = volleys.len() % 2;
+            let victim = 1 - shooter;
+            let (slot, is_kill) = if ki[victim] < kills_by_side[victim].len() {
+                let sl = kills_by_side[victim][ki[victim]];
+                ki[victim] += 1;
+                (sl, true)
+            } else {
+                (0, false)
+            };
+            volleys.push((shooter, victim, slot, is_kill));
+        }
+
+        let vdt = 0.30f32;
+        let v0 = 0.55f32;
+        let vt = (t - v0).max(0.0);
+        let vidx = (vt / vdt).floor() as i32;
+        let vprog = vt / vdt - vidx as f32;
+
+        let kill_volley = |side: usize, slot: usize| -> Option<i32> {
+            volleys
+                .iter()
+                .position(|&(_, vi, sl, _)| vi == side && sl == slot)
+                .map(|p| p as i32)
+        };
+        let alive = |side: usize, slot: usize| -> bool {
+            match kill_volley(side, slot) {
+                Some(k) => vidx < k || (vidx == k && vprog < 0.5),
+                None => true,
+            }
+        };
+
+        let slide = (t / 0.5).min(1.0).powi(2);
+        for side in 0..2 {
+            let n = if side == 0 { n0 } else { n1 };
+            let col = side_color(side);
+            let ang = if side == 0 { 0.0 } else { std::f32::consts::PI };
+            let cx = ar.x + aw * if side == 0 { 0.27 } else { 0.73 };
+            for slot in 0..n {
+                let mut p = pos(side, slot);
+                p.x += if side == 0 { -1.0 } else { 1.0 } * (1.0 - slide) * aw * 0.30;
+                if alive(side, slot) {
+                    self.draw_ship(
+                        "frigate",
+                        p.x,
+                        p.y,
+                        sz,
+                        col,
+                        Self::hull_tint("frigate"),
+                        ang,
+                    );
+                } else if let Some(k) = kill_volley(side, slot) {
+                    let et = (vt - (k as f32 + 0.5) * vdt) / 0.35;
+                    if (0.0..1.0).contains(&et) {
+                        let a = 1.0 - et;
+                        let r = sz * (0.35 + et * 1.5);
+                        draw_circle(
+                            p.x,
+                            p.y,
+                            r,
+                            Color::from_rgba(255, 200, 120, (150.0 * a) as u8),
+                        );
+                        draw_circle(
+                            p.x,
+                            p.y,
+                            r * 0.55,
+                            Color::from_rgba(255, 240, 210, (225.0 * a) as u8),
+                        );
+                    }
+                }
+            }
+            let label = format!("{}  x{}", names[side], counts[side]);
+            let lw = self.text_width(&label, 15.0);
+            self.text(
+                &label,
+                cx - lw / 2.0,
+                cy + sz * 1.15 + self.u(8.0),
+                15.0,
+                col,
+            );
+            let sub = format!("lost {}", losses[side].max(0));
+            let sw2 = self.text_width(&sub, 13.0);
+            self.text(
+                &sub,
+                cx - sw2 / 2.0,
+                cy + sz * 1.15 + self.u(26.0),
+                13.0,
+                MUTED,
+            );
+        }
+
+        // ---- volley beams ----------------------------------------------
+        if t >= v0 && (vidx as usize) < volleys.len() {
+            let k = vidx as usize;
+            let (shooter, victim, vslot, is_kill) = volleys[k];
+            let sn = if shooter == 0 { n0 } else { n1 };
+            let a = pos(shooter, k % sn.max(1));
+            let b = pos(victim, vslot);
+            let fade = 1.0 - vprog;
+            let col = if is_kill {
+                c(255, 190, 120)
+            } else {
+                c(160, 220, 255)
+            };
+            draw_line(
+                a.x,
+                a.y,
+                b.x,
+                b.y,
+                2.0 * s,
+                Color::from_rgba(
+                    (col.r * 255.0) as u8,
+                    (col.g * 255.0) as u8,
+                    (col.b * 255.0) as u8,
+                    (220.0 * fade) as u8,
+                ),
+            );
+            draw_circle(
+                b.x,
+                b.y,
+                sz * 0.35 * (1.0 + vprog),
+                Color::from_rgba(255, 220, 160, (140.0 * fade) as u8),
+            );
+        }
+
+        // ---- result ----------------------------------------------------
+        let result_t = v0 + n_volleys as f32 * vdt + 0.45;
+        if t > result_t {
+            let (label, col) = match &rec.winner {
+                Some(w) if *w == names[0] => ("VICTORY", GOOD),
+                Some(w) if *w == names[1] => ("DEFEAT", BAD),
+                Some(_) => ("VICTORY", GOOD),
+                None => ("STALEMATE", WAR),
+            };
+            let bw = self.u(340.0);
+            let br = rect(acx - bw / 2.0, ar.y + ar.h * 0.72, bw, self.u(92.0));
+            draw_rectangle(br.x, br.y, br.w, br.h, c(12, 18, 34));
+            draw_rectangle_lines(br.x, br.y, br.w, br.h, s.max(1.0), col);
+            let lw = self.text_width(label, 30.0);
+            self.text(label, acx - lw / 2.0, br.y + self.u(40.0), 30.0, col);
+            let sub = match &rec.winner {
+                Some(w) => format!("{} wins  -  {} ships lost", w, rec.losses),
+                None => format!("No survivor  -  {} ships lost", rec.losses),
+            };
+            let sw3 = self.text_width(&sub, 15.0);
+            self.text(&sub, acx - sw3 / 2.0, br.y + self.u(66.0), 15.0, MUTED);
+            if (t * 2.0).fract() < 0.7 {
+                let hint = "Click to continue";
+                let hw = self.text_width(hint, 15.0);
+                self.text(
+                    hint,
+                    acx - hw / 2.0,
+                    br.y + br.h + self.u(12.0),
+                    15.0,
+                    MUTED,
+                );
+            }
         }
     }
 
@@ -1011,16 +1525,18 @@ impl Ui {
         draw_rectangle(top.x, top.y, top.w, self.u(2.0), ACCENT);
         draw_line(0.0, top.h - 1.0, top.w, top.h - 1.0, 1.0, BORDER);
 
-        let mid = top.h * 0.5;
-        let mut x = self.u(14.0);
-        self.text("STELLAR DOMINION", x, mid + self.u(5.0), 20.0, ACCENT);
+        let s = self.scale;
+        // ---- row 1: title + resource readout ----
+        let iy = top.y + self.u(17.0);
+        let mut x = top.x + self.u(14.0);
+        self.text("STELLAR DOMINION", x, iy, 20.0, ACCENT);
         x += self.text_width("STELLAR DOMINION", 20.0) + self.u(20.0);
         // thin separator between the title and the resource readout
         draw_line(
             x - self.u(11.0),
-            mid - self.u(9.0),
+            iy - self.u(9.0),
             x - self.u(11.0),
-            mid + self.u(9.0),
+            iy + self.u(9.0),
             1.0,
             BORDER,
         );
@@ -1068,37 +1584,65 @@ impl Ui {
                 RESEARCH,
             ),
         ];
-        for (s, col) in items {
-            self.text(&s, x, mid + self.u(4.0), 16.0, col);
-            x += self.text_width(&s, 16.0) + self.u(16.0);
+        for (t, col) in items {
+            self.text(&t, x, iy, 16.0, col);
+            x += self.text_width(&t, 16.0) + self.u(16.0);
         }
 
-        let buttons: Vec<(&str, Action, Style)> = vec![
-            ("Research", Action::Research, Style::Normal),
-            ("Diplomacy", Action::Diplomacy, Style::Normal),
-            ("Battles", Action::Battles, Style::Normal),
-            ("Home", Action::Home, Style::Normal),
-            ("Save", Action::Save, Style::Normal),
-            ("New Game", Action::New, Style::Normal),
-            ("Help", Action::Help, Style::Normal),
-            ("End Turn", Action::EndTurn, Style::Primary),
+        // ---- action buttons, packed into as many rows as the width needs ----
+        let actions: [Action; 8] = [
+            Action::Research,
+            Action::Diplomacy,
+            Action::Battles,
+            Action::Home,
+            Action::Save,
+            Action::New,
+            Action::Help,
+            Action::EndTurn,
         ];
-        let widths: Vec<f32> = buttons
+        let styles: [Style; 8] = [
+            Style::Normal,
+            Style::Normal,
+            Style::Normal,
+            Style::Normal,
+            Style::Normal,
+            Style::Normal,
+            Style::Normal,
+            Style::Primary,
+        ];
+        let widths: Vec<f32> = TOP_BUTTONS
             .iter()
-            .map(|(l, _, _)| self.text_width(l, 16.0) + self.u(22.0))
+            .map(|l| self.text_width(l, 16.0) + self.u(22.0))
             .collect();
-        let total: f32 = widths.iter().sum::<f32>() + self.u(8.0) * (buttons.len() as f32 - 1.0);
-        let mut bx = (screen_width() - self.u(14.0) - total).max(x + self.u(10.0));
-        for ((label, action, style), w) in buttons.iter().zip(widths.iter()) {
-            self.button(
-                rect(bx, mid - self.u(16.0), *w, 32.0),
-                label,
-                action.clone(),
-                true,
-                *style,
-                16.0,
-            );
-            bx += *w + self.u(8.0);
+        let gap = self.u(8.0);
+        let avail = (top.w - self.u(28.0)).max(self.u(120.0));
+        let mut rows: Vec<Vec<usize>> = vec![Vec::new()];
+        let mut used = 0.0f32;
+        for (i, w) in widths.iter().enumerate() {
+            let extra = if used == 0.0 { *w } else { gap + *w };
+            if used > 0.0 && used + extra > avail {
+                rows.push(vec![i]);
+                used = *w;
+            } else {
+                rows.last_mut().unwrap().push(i);
+                used += extra;
+            }
+        }
+        let mut by = top.y + (TOP_INFO_H + TOP_ROW_GAP) * s;
+        for row in rows {
+            let mut bx = top.x + self.u(14.0);
+            for i in row {
+                self.button(
+                    rect(bx, by, widths[i], TOP_BTN_H),
+                    TOP_BUTTONS[i],
+                    actions[i].clone(),
+                    true,
+                    styles[i],
+                    16.0,
+                );
+                bx += widths[i] + gap;
+            }
+            by += (TOP_BTN_H + TOP_ROW_GAP) * s;
         }
     }
 
@@ -1342,15 +1886,13 @@ impl Ui {
             Some(d) => (d.y - f.y).atan2(d.x - f.x),
             None => -std::f32::consts::FRAC_PI_2,
         };
-        draw_poly(p.x, p.y, 4, fs, angle + std::f32::consts::FRAC_PI_2, color);
-        draw_poly(
-            p.x,
-            p.y,
-            4,
-            fs * 0.55,
-            angle + std::f32::consts::FRAC_PI_2,
-            BLACK,
-        );
+        let hull = f
+            .ships
+            .first()
+            .map(|s| self.hull_of(&s.cls, st))
+            .unwrap_or_else(|| "frigate".to_string());
+        let sz = (fs * 2.0).max(self.u(11.0));
+        self.draw_ship(&hull, p.x, p.y, sz, color, Self::hull_tint(&hull), angle);
 
         let cnt = format!("{}", f.ships.len());
         self.text(&cnt, p.x + fs + 2.0, p.y - fs, 15.0, c(235, 242, 255));
@@ -2644,7 +3186,7 @@ impl Ui {
     }
 
     fn modal_designer(&mut self, st: &State, w: f32, h: f32) {
-        let box_r = self.modal_box(w, h, 580.0, 560.0);
+        let box_r = self.modal_box(w, h, 580.0, 596.0);
         self.text(
             "Ship Designer",
             box_r.x + self.u(20.0),
@@ -2783,18 +3325,52 @@ impl Ui {
             box_r.x + self.u(20.0),
             py,
             box_r.w - self.u(40.0),
-            44.0,
+            72.0,
             PANEL2,
         );
         self.text(
             &format!(
-                "HP {}   |   Attack {}   |   Speed {}   |   {}cr {}min   |   {} turns",
+                "HP {}  |  ATK {}  |  SPD {}  |  {}cr {}min  |  {}t",
                 d.hp, d.attack, d.speed, d.credits, d.minerals, d.build_turns
             ),
             box_r.x + self.u(30.0),
-            py + self.u(16.0),
-            16.0,
+            py + self.u(18.0),
+            15.0,
             TEXT,
+        );
+        // hull preview
+        let hull_key = if data::hull(&self.d_hull).is_some() {
+            self.d_hull.clone()
+        } else {
+            "frigate".to_string()
+        };
+        let prev = rect(
+            box_r.x + box_r.w - self.u(200.0),
+            py + self.u(4.0),
+            self.u(178.0),
+            64.0,
+        );
+        draw_rectangle(prev.x, prev.y, prev.w, prev.h, BG2);
+        draw_rectangle_lines(prev.x, prev.y, prev.w, prev.h, 1.0, BORDER);
+        self.draw_ship(
+            &hull_key,
+            prev.x + prev.w / 2.0,
+            prev.y + self.u(26.0),
+            self.u(38.0),
+            ACCENT,
+            Self::hull_tint(&hull_key),
+            0.0,
+        );
+        let hn = data::hull(&hull_key)
+            .map(|x| x.name.to_string())
+            .unwrap_or_default();
+        let hnw = self.text_width(&hn, 13.0);
+        self.text(
+            &hn,
+            prev.x + prev.w / 2.0 - hnw / 2.0,
+            prev.y + prev.h - self.u(15.0),
+            13.0,
+            MUTED,
         );
         let mut req: Vec<String> = Vec::new();
         for key in [&self.d_hull, &self.d_weapon, &self.d_armor, &self.d_engine] {
@@ -2819,7 +3395,7 @@ impl Ui {
                 "Requires: "
             },
             box_r.x + self.u(30.0),
-            py + self.u(34.0),
+            py + self.u(46.0),
             13.0,
             if req.is_empty() { GOOD } else { WAR },
         );
@@ -2827,13 +3403,13 @@ impl Ui {
             self.text(
                 &req.join(", "),
                 box_r.x + self.u(30.0) + self.text_width("Requires: ", 12.0),
-                py + self.u(34.0),
+                py + self.u(46.0),
                 13.0,
                 WAR,
             );
         }
 
-        let mut dy = py + self.u(56.0);
+        let mut dy = py + self.u(88.0);
         self.text(
             "YOUR DESIGNS",
             box_r.x + self.u(20.0),
@@ -2861,16 +3437,26 @@ impl Ui {
                 Some(x) => (x.name, x.desc),
                 None => (key.clone(), String::new()),
             };
+            let dhull = self.hull_of(&key, st);
+            self.draw_ship(
+                &dhull,
+                box_r.x + self.u(34.0),
+                dy + self.u(10.0),
+                self.u(20.0),
+                ACCENT,
+                Self::hull_tint(&dhull),
+                0.0,
+            );
             self.text(
                 &dname,
-                box_r.x + self.u(20.0),
+                box_r.x + self.u(52.0),
                 dy + self.u(11.0),
                 15.0,
                 TEXT,
             );
             self.text(
                 &ddesc,
-                box_r.x + self.u(200.0),
+                box_r.x + self.u(216.0),
                 dy + self.u(12.0),
                 13.0,
                 MUTED,

@@ -175,6 +175,12 @@ pub struct BattleRec {
     pub winner: Option<String>,
     #[serde(default)]
     pub losses: i32,
+    /// Ships each side fielded, in `participants` order.
+    #[serde(default)]
+    pub ships: Vec<i32>,
+    /// Ships each side lost, in `participants` order.
+    #[serde(default)]
+    pub losses_by: Vec<i32>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

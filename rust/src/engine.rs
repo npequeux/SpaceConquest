@@ -1423,6 +1423,32 @@ fn battle_correct(teams: &[Team], rng: &mut StdRng) -> BattleResult {
     }
 }
 
+/// Per-side strength for a battle report, in `names` (participants) order.
+/// Defence platforms are excluded: they are fixed emplacements, not ships.
+fn battle_sides(
+    st: &State,
+    teams: &[Team],
+    names: &[String],
+    losses: &HashMap<usize, i32>,
+) -> (Vec<i32>, Vec<i32>) {
+    let mut ships = vec![0i32; names.len()];
+    let mut lost = vec![0i32; names.len()];
+    for t in teams {
+        if t.is_platforms {
+            continue;
+        }
+        let name = st
+            .empire(t.empire_id)
+            .map(|e| e.name.clone())
+            .unwrap_or_default();
+        if let Some(i) = names.iter().position(|n| *n == name) {
+            ships[i] += t.ships.len() as i32;
+            lost[i] += losses.get(&t.empire_id).copied().unwrap_or(0);
+        }
+    }
+    (ships, lost)
+}
+
 fn ship_ref(st: &State, empire_id: usize, fleet_id: usize, index: usize) -> SimShip {
     let cls = st
         .fleet(fleet_id)
@@ -1522,6 +1548,7 @@ fn resolve_combat(st: &mut State, rng: &mut StdRng, toasts: &mut Vec<String>) {
                 .filter_map(|c| st.empire(*c).map(|e| e.name.clone()))
                 .collect();
             let total_losses: i32 = res.losses.values().sum();
+            let (side_ships, side_losses) = battle_sides(&*st, &teams, &names, &res.losses);
             let is_player = conflict.contains(&0);
             log(
                 st,
@@ -1546,6 +1573,8 @@ fn resolve_combat(st: &mut State, rng: &mut StdRng, toasts: &mut Vec<String>) {
                     participants: names,
                     winner: winner_name,
                     losses: total_losses,
+                    ships: side_ships,
+                    losses_by: side_losses,
                 },
             );
         }
@@ -1707,19 +1736,23 @@ fn combat_at_owned(
             total_losses
         ),
     );
+    let participants: Vec<String> = {
+        let mut v = vec![owner_name.clone()];
+        v.extend(attacker_names.clone());
+        v
+    };
+    let (side_ships, side_losses) = battle_sides(&*st, &teams, &participants, &res.losses);
     record_battle(
         st,
         BattleRec {
             turn: st.turn,
             system: st.system(sid).map(|s| s.name.clone()).unwrap_or_default(),
             kind: "colony".into(),
-            participants: {
-                let mut v = vec![owner_name.clone()];
-                v.extend(attacker_names.clone());
-                v
-            },
+            participants,
             winner: winner_name.clone(),
             losses: total_losses,
+            ships: side_ships,
+            losses_by: side_losses,
         },
     );
 
